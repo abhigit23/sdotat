@@ -213,17 +213,17 @@ export default function PasteEditor() {
     <form
       onSubmit={handleSubmit}
       autoComplete="off"
-      className="flex w-full max-w-3xl flex-col gap-4"
+      className="flex w-full max-w-3xl flex-col gap-3"
     >
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Paste or type your text here..."
-        className="min-h-60 w-full resize-y rounded-xl border border-zinc-300 bg-white p-4 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-80 dark:border-zinc-700 dark:bg-zinc-900"
+        className="min-h-40 w-full resize-y rounded-xl border border-zinc-300 bg-white p-4 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 sm:min-h-52 dark:border-zinc-700 dark:bg-zinc-900"
         required
       />
 
-      <div className="flex flex-col gap-2 rounded-xl border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+      <div className="flex flex-col gap-1.5 rounded-xl border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
         <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
           <span className="font-medium">Attachments (optional)</span>
           <span className="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
@@ -278,7 +278,7 @@ export default function PasteEditor() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">Expiration</span>
           <select

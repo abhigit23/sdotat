@@ -53,7 +53,7 @@ export default async function PastePage({
 
   return (
     <Card>
-      <div className="mb-4 flex items-center justify-between pr-12">
+      <div className="mb-4 flex items-center justify-between pr-12 lg:pr-0">
         <Link
           href="/"
           className="text-sm font-medium text-blue-600 hover:underline"

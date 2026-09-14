@@ -4,10 +4,14 @@ import { customAlphabet } from "nanoid";
 const alphabet =
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-const CODE_LENGTH = 6;
+export const CODE_LENGTH = 6;
 
 // ~56 bits of entropy at length 6.
 export const shortId = customAlphabet(alphabet, CODE_LENGTH);
+
+export function isValidCode(code: string): boolean {
+  return code.length === CODE_LENGTH && /^[0-9A-Za-z]{6}$/.test(code);
+}
 
 type CodeProvider = () => string;
 type IsTaken = (code: string) => Promise<boolean>;
