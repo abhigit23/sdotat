@@ -5,6 +5,7 @@ import { upload } from "@vercel/blob/client";
 import { X } from "lucide-react";
 import CopyButton from "./copy-button";
 import PasswordInput from "./password-input";
+import Spinner from "./spinner";
 import {
   bytesToBase64,
   generateContentKey,
@@ -312,6 +313,7 @@ export default function PasteEditor() {
         autoComplete="off"
         className="flex w-full max-w-3xl flex-col gap-3"
       >
+        <fieldset disabled={loading} className="contents">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -320,7 +322,7 @@ export default function PasteEditor() {
           required
         />
 
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center hidden md:block">
           Tip: you can also drag files anywhere on this page, or paste them from
           your clipboard (Ctrl/Cmd+V).
         </p>
@@ -430,10 +432,12 @@ export default function PasteEditor() {
         <button
           type="submit"
           disabled={loading || !content.trim()}
-          className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto w-full"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
         >
+          {loading && <Spinner />}
           {loading ? "Creating..." : "Create paste"}
         </button>
+        </fieldset>
       </form>
     </>
   );

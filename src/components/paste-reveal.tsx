@@ -3,6 +3,7 @@
 import { useState } from "react";
 import CopyButton from "./copy-button";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
+import Spinner from "./spinner";
 
 type Props = {
   code: string;
@@ -82,8 +83,9 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         type="button"
         onClick={reveal}
         disabled={loading}
-        className="w-full rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
       >
+        {loading && <Spinner />}
         {loading ? "Revealing..." : burnAfterRead ? "I understand, reveal it" : "View"}
       </button>
     </div>

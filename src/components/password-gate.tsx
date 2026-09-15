@@ -4,6 +4,7 @@ import { useState } from "react";
 import CopyButton from "./copy-button";
 import PasswordInput from "./password-input";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
+import Spinner from "./spinner";
 
 type ViewState =
   | { status: "locked" }
@@ -72,21 +73,24 @@ export default function PasswordGate({ code }: { code: string }) {
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Enter the password to view the content.
       </p>
-      <PasswordInput
-        value={password}
-        onChange={setPassword}
-        placeholder="Password"
-        autoFocus
-        className="dark:bg-zinc-800"
-      />
+      <fieldset disabled={loading} className="contents">
+        <PasswordInput
+          value={password}
+          onChange={setPassword}
+          placeholder="Password"
+          autoFocus
+          className="dark:bg-zinc-800"
+        />
+      </fieldset>
       {view.status === "error" && (
         <p className="text-sm text-red-600">{view.message}</p>
       )}
       <button
         type="submit"
         disabled={loading || !password}
-        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
+        className="flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
       >
+        {loading && <Spinner />}
         {loading ? "Unlocking..." : "View paste"}
       </button>
     </form>
