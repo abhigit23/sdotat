@@ -1,7 +1,10 @@
+import { connection } from "next/server";
 import PasteEditor from "@/components/paste-editor";
 import OpenPaste from "@/components/open-paste";
 
-export default function Home() {
+export default async function Home() {
+  await connection();
+
   return (
     <main className="flex flex-1 flex-col items-center px-4 py-4 sm:px-6">
       <div className="w-full max-w-3xl">
