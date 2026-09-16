@@ -12,7 +12,7 @@ export function proxy(request: NextRequest) {
     `style-src 'self' ${isDev ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
     "img-src 'self' blob: data:",
     "font-src 'self'",
-    "connect-src 'self' blob:",
+    "connect-src 'self' blob: https://vercel.com",
     "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
