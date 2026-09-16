@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 type PasswordInputProps = {
@@ -19,11 +19,14 @@ export default function PasswordInput({
   className = "",
 }: PasswordInputProps) {
   const [show, setShow] = useState(false);
+  const inputId = useId();
 
   return (
     <div className="relative">
       <input
         type="text"
+        id={inputId}
+        name="password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

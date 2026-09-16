@@ -315,6 +315,8 @@ export default function PasteEditor() {
       >
         <fieldset disabled={loading} className="contents">
         <textarea
+          id="paste-content"
+          name="content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Paste or type your text here..."
@@ -337,6 +339,8 @@ export default function PasteEditor() {
             </span>
             <input
               type="file"
+              id="paste-files"
+              name="files"
               multiple
               disabled={loading}
               onChange={(e) => onSelectFiles(e)}
@@ -388,6 +392,8 @@ export default function PasteEditor() {
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium">Expiration</span>
             <select
+              id="paste-expiration"
+              name="expiresIn"
               value={expiresIn}
               onChange={(e) => setExpiresIn(e.target.value)}
               className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-900"
@@ -412,6 +418,8 @@ export default function PasteEditor() {
           <label className="mt-auto flex items-center gap-2 pb-2">
             <input
               type="checkbox"
+              id="burn-after-read"
+              name="burnAfterRead"
               checked={burnAfterRead}
               disabled={files.length > 0}
               onChange={(e) => setBurnAfterRead(e.target.checked)}

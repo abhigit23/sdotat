@@ -66,6 +66,9 @@ export default function OpenPaste() {
         <div className="flex w-full max-w-md overflow-hidden rounded-lg border border-zinc-300 dark:border-zinc-700">
           <input
             type="text"
+            id="paste-code"
+            name="pasteCode"
+            aria-label="Paste code or link"
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
