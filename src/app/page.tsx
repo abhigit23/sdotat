@@ -14,7 +14,7 @@ export default function Home() {
         <div className="mb-4 flex justify-center">
           <OpenPaste />
         </div>
-        <div className="flex items-center gap-3 text-xs text-zinc-400 dark:text-zinc-500">
+        <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
           <span className="flex-1 border-t border-zinc-300 dark:border-zinc-700" />
           or create a new paste
           <span className="flex-1 border-t border-zinc-300 dark:border-zinc-700" />

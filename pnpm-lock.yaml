@@ -38,9 +38,6 @@ importers:
       react-dom:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
-      text-security:
-        specifier: ^3.2.1
-        version: 3.2.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2668,9 +2665,6 @@ packages:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
 
-  text-security@3.2.1:
-    resolution: {integrity: sha512-MjDQ3lyLeLqcGqZfQCZ6kvjQiuNfJaicdgIczPJDtD4tj0vIPT8WwIOKTi8wgXCVS/F1WJmapO3SppXemrwbIA==}
-
   throttleit@2.1.0:
     resolution: {integrity: sha512-nt6AMGKW1p/70DF/hGBdJB57B8Tspmbp5gfJ8ilhLnt7kkr2ye7hzD6NVG8GGErk2HWF34igrL2CXmNIkzKqKw==}
     engines: {node: '>=18'}
@@ -5251,8 +5245,6 @@ snapshots:
   tailwindcss@4.3.3: {}
 
   tapable@2.3.3: {}
-
-  text-security@3.2.1: {}
 
   throttleit@2.1.0: {}
 

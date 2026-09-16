@@ -2,6 +2,42 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@font-face {
+  font-family: "text-security-disc";
+  src: url("./fonts/text-security-disc-compat.eot");
+  src:
+    url("./fonts/text-security-disc-compat.eot?#iefix") format("embedded-opentype"),
+    url("./fonts/text-security-disc-compat.woff2") format("woff2"),
+    url("./fonts/text-security-disc-compat.ttf") format("truetype");
+  font-display: swap;
+}
+
+@supports (
+  (content-visibility: visible) or (-moz-appearance: meter)
+) and (not (-webkit-hyphens: none)) {
+  @font-face {
+    font-family: "text-security-disc";
+    src:
+      url("./fonts/text-security-disc.woff2") format("woff2"),
+      url("./fonts/text-security-disc-compat.ttf") format("truetype");
+    font-display: swap;
+  }
+}
+
+@font-face {
+  font-family: "text-security-disc-fallback";
+  src:
+    local("ui-sans-serif"),
+    local("system-ui"),
+    local("Segoe UI"),
+    local("-apple-system"),
+    local("Arial");
+  size-adjust: 40%;
+  ascent-override: 88%;
+  descent-override: 12%;
+  line-gap-override: 0%;
+}
+
 :root {
   --background: #fafafa;
   --foreground: #171717;
@@ -29,7 +65,9 @@ body {
 .password-mask {
   -webkit-text-security: disc;
   text-security: disc;
-  font-family: "text-security-disc", ui-sans-serif, system-ui, sans-serif;
+  font-family:
+    "text-security-disc", "text-security-disc-fallback", ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 .password-mask::placeholder {

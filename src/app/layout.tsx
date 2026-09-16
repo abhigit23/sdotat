@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "text-security/text-security.css";
 import "./globals.css";
 import ThemeToggle from "@/components/theme-toggle";
 
@@ -15,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://sdotat.vercel.app"),
   title: "s.at — Short, self-destructing pastes",
   description:
     "Share short links to pastes that can expire, require a password, or burn after being read.",
