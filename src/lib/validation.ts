@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+z.config({ jitless: true });
+
 export const EXPIRY_OPTIONS = [
   "5min",
   "10min",
