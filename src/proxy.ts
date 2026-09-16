@@ -20,6 +20,7 @@ export function proxy(request: NextRequest) {
     "frame-ancestors 'none'",
     "frame-src 'none'",
     "upgrade-insecure-requests",
+    ...(isDev ? [] : ["require-trusted-types-for 'script'", "trusted-types default"]),
   ].join("; ");
 
   const securityHeaders = {
@@ -45,13 +46,6 @@ export function proxy(request: NextRequest) {
 
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
-  }
-
-  if (!isDev) {
-    response.headers.set(
-      "Content-Security-Policy-Report-Only",
-      "require-trusted-types-for 'script';"
-    );
   }
 
   return response;
