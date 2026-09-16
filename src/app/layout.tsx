@@ -34,6 +34,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <script
           nonce={nonce ?? undefined}
           dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(typeof trustedTypes!=="undefined"&&typeof trustedTypes.createPolicy==="function"){trustedTypes.createPolicy("default",{createHTML:s=>s,createScriptURL:s=>s});}}catch(e){}})();`,
+          }}
+        />
+        <script
+          nonce={nonce ?? undefined}
+          dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`,
           }}
         />
