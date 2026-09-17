@@ -20,7 +20,7 @@ export function proxy(request: NextRequest) {
     "frame-ancestors 'none'",
     "frame-src 'none'",
     "upgrade-insecure-requests",
-    ...(isDev ? [] : ["require-trusted-types-for 'script'", "trusted-types default"]),
+    ...(isDev ? [] : ["trusted-types nextjs nextjs#bundler default"]),
   ].join("; ");
 
   const securityHeaders = {
