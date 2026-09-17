@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
 
   const contentSecurityPolicyHeaderValue = [
     "default-src 'self'",
-    `script-src 'nonce-${nonce}' 'strict-dynamic' 'report-sha256'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     "script-src-attr 'none'",
     `style-src 'self' ${isDev ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
     "img-src 'self' blob: data:",
@@ -20,7 +20,6 @@ export function proxy(request: NextRequest) {
     "frame-ancestors 'none'",
     "frame-src 'none'",
     "upgrade-insecure-requests",
-    ...(isDev ? [] : ["trusted-types nextjs nextjs#bundler default"]),
   ].join("; ");
 
   const securityHeaders = {
