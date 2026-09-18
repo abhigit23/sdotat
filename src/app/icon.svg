@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#09090b" />
+  <text
+    x="32"
+    y="33"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="'Geist', 'Inter', system-ui, -apple-system, sans-serif"
+    font-size="26"
+    font-weight="700"
+    fill="#ffffff"
+  >
+    s.at
+  </text>
+</svg>
