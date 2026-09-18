@@ -16,9 +16,30 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sdotat.vercel.app"),
-  title: "s.at — Short, self-destructing pastes",
+  title: {
+    default: "s.at — Short, self-destructing pastes",
+    template: "%s — s.at",
+  },
   description:
     "Share short links to pastes that can expire, require a password, or burn after being read.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "s.at — Short, self-destructing pastes",
+    description:
+      "Share short links to pastes that can expire, require a password, or burn after being read.",
+    url: "https://sdotat.vercel.app",
+    siteName: "s.at",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "s.at — Short, self-destructing pastes",
+    description:
+      "Share short links to pastes that can expire, require a password, or burn after being read.",
+  },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -43,12 +64,26 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();`,
           }}
         />
+        <script
+          type="application/ld+json"
+          nonce={nonce ?? undefined}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "s.at",
+              url: "https://sdotat.vercel.app",
+              description:
+                "Share short links to pastes that can expire, require a password, or burn after being read.",
+            }),
+          }}
+        />
       </head>
       <body className="flex min-h-full flex-col bg-zinc-50 font-sans dark:bg-zinc-950">
         {children}
         <ThemeToggle />
         <footer className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 py-6 text-center text-xs text-zinc-400">
-          <span>
+          <span className="text-zinc-500 dark:text-zinc-400">
             &copy; {new Date().getFullYear()} s.at — server-side encrypted pastes
           </span>
           <span aria-hidden className="text-zinc-300 dark:text-zinc-600">
@@ -58,7 +93,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             href="https://github.com/abhigit23/sdotat"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-zinc-500 underline-offset-4 hover:text-zinc-700 hover:underline dark:text-zinc-500 dark:hover:text-zinc-200"
+            className="inline-flex items-center gap-1.5 text-zinc-600 underline-offset-4 hover:text-zinc-900 hover:underline dark:text-zinc-300 dark:hover:text-zinc-100"
           >
             <svg
               viewBox="0 0 24 24"

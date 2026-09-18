@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import type { Metadata } from "next";
 import {
   getPasteByCode,
   deletePaste,
@@ -9,6 +10,10 @@ import PasswordGate from "@/components/password-gate";
 import PasteReveal from "@/components/paste-reveal";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 function Card({
   children,
