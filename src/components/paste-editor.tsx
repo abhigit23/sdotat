@@ -63,6 +63,15 @@ async function mapWithConcurrency<T, R>(
 
 const UPLOAD_CONCURRENCY = 3;
 
+type SubmitPhase = "idle" | "encrypting" | "uploading" | "saving";
+
+const SUBMIT_LABELS: Record<SubmitPhase, string> = {
+  idle: "Create paste",
+  encrypting: "Encrypting…",
+  uploading: "Uploading files…",
+  saving: "Creating paste…",
+};
+
 export default function PasteEditor() {
   const [content, setContent] = useState("");
   const [password, setPassword] = useState("");
@@ -72,6 +81,7 @@ export default function PasteEditor() {
   const [result, setResult] = useState<CreateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [submitPhase, setSubmitPhase] = useState<SubmitPhase>("idle");
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 
   // Refs mirror state so the document-level drag/drop and paste listeners can
@@ -195,6 +205,8 @@ export default function PasteEditor() {
         return;
       }
 
+      if (files.length > 0) setSubmitPhase("encrypting");
+
       const trimmedPassword = password.trim();
       let key: Uint8Array<ArrayBuffer>;
       let keyForBody: string | undefined;
@@ -211,6 +223,8 @@ export default function PasteEditor() {
       const prepared = await Promise.all(
         files.map((f) => prepareFileForUpload(key, f)),
       );
+
+      if (files.length > 0) setSubmitPhase("uploading");
 
       const fileMeta = await mapWithConcurrency(
         prepared,
@@ -237,6 +251,8 @@ export default function PasteEditor() {
         },
       );
 
+      setSubmitPhase("saving");
+
       const res = await fetch("/api/pastes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -253,6 +269,7 @@ export default function PasteEditor() {
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "Failed to create paste");
+        setSubmitPhase("idle");
         setLoading(false);
         return;
       }
@@ -265,6 +282,7 @@ export default function PasteEditor() {
     } catch {
       setError("Network error");
     }
+    setSubmitPhase("idle");
     setLoading(false);
   }
 
@@ -443,7 +461,7 @@ export default function PasteEditor() {
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
         >
           {loading && <Spinner />}
-          {loading ? "Creating..." : "Create paste"}
+          {SUBMIT_LABELS[submitPhase]}
         </button>
         </fieldset>
       </form>
