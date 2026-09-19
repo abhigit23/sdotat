@@ -24,6 +24,7 @@ function formatBytes(n: number): string {
 export default function PasteFiles({ code, attachments, password }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<Record<string, number>>({});
 
   async function download(a: AttachmentMeta) {
     setBusy(a.id);
@@ -35,10 +36,24 @@ export default function PasteFiles({ code, attachments, password }: Props) {
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         setError(data?.error ?? "Failed to download file");
+        setProgress((prev) => ({ ...prev, [a.id]: 0 }));
         setBusy(null);
         return;
       }
-      const blob = await res.blob();
+      const reader = (res.body as ReadableStream<Uint8Array>).getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        setProgress((prev) => ({
+          ...prev,
+          [a.id]: Math.min(100, Math.round((received / a.size) * 100)),
+        }));
+      }
+      const blob = new Blob(chunks as unknown as BlobPart[], { type: a.mime });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -50,6 +65,7 @@ export default function PasteFiles({ code, attachments, password }: Props) {
     } catch {
       setError("Network error");
     }
+    setProgress((prev) => ({ ...prev, [a.id]: 0 }));
     setBusy(null);
   }
 
@@ -63,15 +79,24 @@ export default function PasteFiles({ code, attachments, password }: Props) {
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
       <ul className="flex flex-col gap-2">
         {attachments.map((a) => (
-          <li key={a.id}>
+          <li key={a.id} className="relative overflow-hidden rounded-md">
             <button
               type="button"
               onClick={() => download(a)}
               disabled={busy === a.id}
-              className="flex w-full items-center justify-between gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-md border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
-              <span className="min-w-0 truncate font-mono">{a.filename}</span>
-              <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+              {progress[a.id] ? (
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0 left-0 bg-sky-500/25 transition-[width] duration-200 ease-out"
+                  style={{ width: `${progress[a.id]}%` }}
+                />
+              ) : null}
+              <span className="relative min-w-0 truncate font-mono">
+                {a.filename}
+              </span>
+              <span className="relative shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
                 {formatBytes(a.size)}
               </span>
             </button>
