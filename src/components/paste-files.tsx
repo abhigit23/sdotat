@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export type AttachmentMeta = {
   id: string;
@@ -15,6 +15,8 @@ type Props = {
   password?: string;
 };
 
+const DOWNLOAD_CONCURRENCY = 3;
+
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -22,12 +24,36 @@ function formatBytes(n: number): string {
 }
 
 export default function PasteFiles({ code, attachments, password }: Props) {
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, number>>({});
+  const activeRef = useRef(0);
+  const pendingRef = useRef<Array<() => void>>([]);
+
+  function setBusyId(id: string, value: boolean) {
+    setBusy((prev) => {
+      const next = new Set(prev);
+      if (value) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function runWhenReady(run: () => Promise<void>) {
+    const start = () => {
+      activeRef.current += 1;
+      run().finally(() => {
+        activeRef.current -= 1;
+        const next = pendingRef.current.shift();
+        if (next) next();
+      });
+    };
+    if (activeRef.current < DOWNLOAD_CONCURRENCY) start();
+    else pendingRef.current.push(start);
+  }
 
   async function download(a: AttachmentMeta) {
-    setBusy(a.id);
+    setBusyId(a.id, true);
     setError(null);
     try {
       const res = await fetch(`/api/pastes/${code}/files/${a.id}`, {
@@ -37,7 +63,7 @@ export default function PasteFiles({ code, attachments, password }: Props) {
         const data = await res.json().catch(() => null);
         setError(data?.error ?? "Failed to download file");
         setProgress((prev) => ({ ...prev, [a.id]: 0 }));
-        setBusy(null);
+        setBusyId(a.id, false);
         return;
       }
       const reader = (res.body as ReadableStream<Uint8Array>).getReader();
@@ -66,7 +92,7 @@ export default function PasteFiles({ code, attachments, password }: Props) {
       setError("Network error");
     }
     setProgress((prev) => ({ ...prev, [a.id]: 0 }));
-    setBusy(null);
+    setBusyId(a.id, false);
   }
 
   if (attachments.length === 0) return null;
@@ -82,8 +108,8 @@ export default function PasteFiles({ code, attachments, password }: Props) {
           <li key={a.id} className="relative overflow-hidden rounded-md">
             <button
               type="button"
-              onClick={() => download(a)}
-              disabled={busy === a.id}
+              onClick={() => runWhenReady(() => download(a))}
+              disabled={busy.has(a.id)}
               className="relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-md border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
               {progress[a.id] ? (
