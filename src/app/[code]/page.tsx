@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { ArrowLeft } from "lucide-react";
 import {
   getPasteByCode,
   deletePaste,
@@ -61,9 +62,10 @@ export default async function PastePage({
       <div className="mb-4 flex items-center justify-between pr-12 lg:pr-0">
         <Link
           href="/"
-          className="text-sm font-medium text-blue-600 hover:underline"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
         >
-          &larr; New paste
+          <ArrowLeft size={16} aria-hidden />
+          New paste
         </Link>
         <span className="font-mono text-sm text-zinc-500">/{code}</span>
       </div>

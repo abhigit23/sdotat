@@ -69,8 +69,8 @@ export default function PasswordGate({ code }: { code: string }) {
       autoComplete="off"
       className="mx-auto flex w-full max-w-md flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
     >
-      <h2 className="text-lg font-semibold">This paste is password protected</h2>
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      <h2 className="text-center text-lg font-semibold">This paste is password protected</h2>
+      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
         Enter the password to view the content.
       </p>
       <fieldset disabled={loading} className="contents">
