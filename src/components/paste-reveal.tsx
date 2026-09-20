@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Eye } from "lucide-react";
 import CopyButton from "./copy-button";
+import ShareButton from "./share-button";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
 import Spinner from "./spinner";
 
@@ -12,7 +14,7 @@ type Props = {
 
 type ViewState =
   | { status: "waiting" }
-  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; password?: string }
+  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number; password?: string }
   | { status: "error"; message: string };
 
 export default function PasteReveal({ code, burnAfterRead }: Props) {
@@ -37,6 +39,7 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         content: data.content,
         burn: data.burnAfterRead,
         attachments: data.attachments ?? [],
+        views: data.views ?? 0,
       });
     } catch {
       setView({ status: "error", message: "Network error" });
@@ -48,10 +51,19 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
     return (
       <div className="w-full">
         <div className="mb-4 flex flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-left">
-          <h2 className="text-sm font-medium text-zinc-500 sm:mr-4 dark:text-zinc-400">
+          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
             {view.burn ? "Revealed once — this paste has been deleted" : "Paste content"}
           </h2>
-          <div className="shrink-0">
+          {!view.burn && (
+            <p className="flex shrink-0 items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              <Eye size={14} aria-hidden />
+              {view.views} view{view.views === 1 ? "" : "s"}
+            </p>
+          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {!view.burn && (
+              <ShareButton url={`${window.location.origin}/${code}`} title={`s.at — paste ${code}`} />
+            )}
             <CopyButton text={view.content} />
           </div>
         </div>

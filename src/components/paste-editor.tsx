@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { X } from "lucide-react";
 import CopyButton from "./copy-button";
+import ShareButton from "./share-button";
 import PasswordInput from "./password-input";
 import Spinner from "./spinner";
 import {
@@ -290,11 +291,12 @@ export default function PasteEditor() {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-center text-lg font-semibold">Your paste is ready!</h2>
-        <div className="flex flex-col items-stretch gap-2 rounded-md border border-zinc-300 bg-zinc-50 p-3 sm:flex-row sm:items-center dark:border-zinc-700 dark:bg-zinc-800">
-          <span className="min-w-0 flex-1 break-all font-mono text-sm sm:truncate">
+        <div className="flex flex-col gap-2 rounded-md border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800">
+          <span className="truncate text-center font-mono text-sm" title={result.url}>
             {result.url}
           </span>
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center justify-center gap-2">
+            <ShareButton url={result.url} title="New paste on sdotat" />
             <CopyButton text={result.url} />
           </div>
         </div>

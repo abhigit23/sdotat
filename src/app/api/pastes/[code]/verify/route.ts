@@ -94,6 +94,7 @@ export async function POST(
     content: plaintext.toString("utf8"),
     burnAfterRead: isBurn,
     expiresAt: paste.expiresAt?.toISOString() ?? null,
+    views: paste.views + 1,
     attachments: attachments.map((a) => ({
       id: a.id,
       filename: a.filename,
