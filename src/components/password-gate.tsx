@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Eye } from "lucide-react";
 import CopyButton from "./copy-button";
-import ShareButton from "./share-button";
 import PasswordInput from "./password-input";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
 import Spinner from "./spinner";
@@ -50,20 +49,24 @@ export default function PasswordGate({ code }: { code: string }) {
   if (view.status === "success") {
     return (
       <div className="w-full">
-        <div className="mb-4 flex flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-left">
-          <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Revealed securely
-          </h2>
-          {!view.burn && (
-            <p className="flex shrink-0 items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-              <Eye size={14} aria-hidden />
-              {view.views} view{view.views === 1 ? "" : "s"}
-            </p>
-          )}
-          <div className="flex shrink-0 items-center gap-2">
+        <div className="mb-4 flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 sm:justify-start">
+            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+              Revealed securely
+            </h2>
             {!view.burn && (
-              <ShareButton url={`${window.location.origin}/${code}`} title={`s.at — paste ${code}`} />
+              <span aria-hidden className="text-xs text-zinc-400 dark:text-zinc-500">
+                ·
+              </span>
             )}
+            {!view.burn && (
+              <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <Eye size={14} aria-hidden />
+                {view.views} view{view.views === 1 ? "" : "s"}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <CopyButton text={view.content} />
           </div>
         </div>
