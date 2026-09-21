@@ -5,8 +5,6 @@ import {
   encryptContent,
   generateContentKey,
   wrapKey,
-  deriveKeyFromPassword,
-  KDF_ITERATIONS,
 } from "@/lib/crypto";
 import { createPaste, addAttachments, deleteBlob, deletePaste } from "@/lib/paste-service";
 import { checkCreateLimit } from "@/lib/rate-limit";
@@ -56,29 +54,12 @@ export async function POST(req: NextRequest) {
 
   let contentKey: Buffer;
   let salt: Buffer | null = null;
-  let kdfIterations: number | null = null;
-  const password = input.password?.trim() ?? "";
 
-  if (password) {
-    // Password pastes with files must pass a client-generated salt so the
-    // client's PBKDF2 key (used to encrypt the file blobs) matches the server's.
-    if (files.length > 0 && !input.salt) {
-      return NextResponse.json(
-        { error: "Missing salt for password-protected attachments" },
-        { status: 400 }
-      );
-    }
-    const derived = deriveKeyFromPassword(
-      password,
-      input.salt ? Buffer.from(input.salt, "base64") : undefined
-    );
-    contentKey = derived.key;
-    salt = derived.salt;
-    kdfIterations = KDF_ITERATIONS;
-  } else if (input.contentKey) {
-    // Non-password pastes with files: reuse the client's key so file blobs and
-    // text share one wrapped content key.
+  if (input.contentKey) {
     contentKey = Buffer.from(input.contentKey, "base64");
+    if (input.salt) {
+      salt = Buffer.from(input.salt, "base64");
+    }
   } else {
     contentKey = generateContentKey();
   }
@@ -98,7 +79,6 @@ export async function POST(req: NextRequest) {
       authTag,
       keyWrapped,
       salt,
-      kdfIterations,
       burnAfterRead: input.burnAfterRead,
       expiresIn: input.expiresIn,
     });

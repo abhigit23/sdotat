@@ -12,7 +12,7 @@ export type AttachmentMeta = {
 type Props = {
   code: string;
   attachments: AttachmentMeta[];
-  password?: string;
+  contentKey?: string;
 };
 
 const DOWNLOAD_CONCURRENCY = 3;
@@ -23,7 +23,7 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
-export default function PasteFiles({ code, attachments, password }: Props) {
+export default function PasteFiles({ code, attachments, contentKey }: Props) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, number>>({});
@@ -57,7 +57,7 @@ export default function PasteFiles({ code, attachments, password }: Props) {
     setError(null);
     try {
       const res = await fetch(`/api/pastes/${code}/files/${a.id}`, {
-        headers: password ? { "X-Paste-Password": password } : undefined,
+        headers: contentKey ? { "X-Paste-Key": contentKey } : undefined,
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

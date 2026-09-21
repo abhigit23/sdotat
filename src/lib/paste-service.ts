@@ -1,7 +1,7 @@
 import { eq, sql, inArray } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Paste, NewPaste, Attachment, NewAttachment } from "@/db/schema";
-import { generateUniqueCode } from "./ids";
+import { shortId } from "./ids";
 
 const EXPIRY_MS: Record<string, number> = {
   "5min": 5 * 60 * 1000,
@@ -21,7 +21,6 @@ export type CreatePasteArgs = {
   authTag: Buffer;
   keyWrapped: Buffer;
   salt?: Buffer | null;
-  kdfIterations?: number | null;
   burnAfterRead: boolean;
   expiresIn: string;
 };
@@ -36,31 +35,30 @@ export async function createPaste(args: CreatePasteArgs): Promise<Paste> {
   const d = db;
   const expiresAt = getExpiryDate(args.expiresIn);
 
-  const code = await generateUniqueCode(async (c) => {
-    const rows = await d
-      .select({ code: schema.pastes.code })
-      .from(schema.pastes)
-      .where(eq(schema.pastes.code, c))
-      .limit(1);
-    return rows.length > 0;
-  });
+  const MAX_CODE_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
+    const row: NewPaste = {
+      code: shortId(),
+      ciphertext: args.ciphertext,
+      iv: args.iv,
+      authTag: args.authTag,
+      keyWrapped: args.keyWrapped,
+      salt: args.salt ?? null,
+      burnAfterRead: args.burnAfterRead,
+      consumed: false,
+      expiresAt,
+      views: 0,
+    };
 
-  const row: NewPaste = {
-    code,
-    ciphertext: args.ciphertext,
-    iv: args.iv,
-    authTag: args.authTag,
-    keyWrapped: args.keyWrapped,
-    salt: args.salt ?? null,
-    kdfIterations: args.kdfIterations ?? null,
-    burnAfterRead: args.burnAfterRead,
-    consumed: false,
-    expiresAt,
-    views: 0,
-  };
+    try {
+      const rows = await d.insert(schema.pastes).values(row).returning();
+      return rows[0];
+    } catch (e) {
+      if ((e as { code?: string }).code !== "23505") throw e;
+    }
+  }
 
-  const rows = await d.insert(schema.pastes).values(row).returning();
-  return rows[0];
+  throw new Error("Failed to generate a unique code");
 }
 
 export async function getPasteByCode(code: string): Promise<Paste | null> {

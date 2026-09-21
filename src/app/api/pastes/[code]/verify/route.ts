@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
   getPasteByCode,
@@ -7,13 +8,15 @@ import {
   getAttachmentsByCode,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
-import { decryptContent, deriveKeyFromPassword } from "@/lib/crypto";
+import { unwrapKey, decryptContent } from "@/lib/crypto";
 import { checkReadLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const verifySchema = z.object({
-  password: z.string().max(256).optional().default(""),
+  contentKey: z
+    .string()
+    .refine((v) => Buffer.from(v, "base64").length === 32, "invalid content key"),
 });
 
 export async function POST(
@@ -56,15 +59,24 @@ export async function POST(
     return NextResponse.json({ error: "Gone" }, { status: 410 });
   }
 
-  // Password required to decrypt
-  const password = parsed.data.password;
+  if (!paste.salt) {
+    return NextResponse.json(
+      { error: "Not a password-protected paste" },
+      { status: 400 }
+    );
+  }
+
+  const provided = Buffer.from(parsed.data.contentKey, "base64");
   let contentKey: Buffer;
   try {
-    if (!paste.salt) {
-      throw new Error("Missing salt for password-protected paste");
-    }
-    contentKey = deriveKeyFromPassword(password, Buffer.from(paste.salt)).key;
+    contentKey = unwrapKey(Buffer.from(paste.keyWrapped));
   } catch {
+    return NextResponse.json({ error: "Invalid paste" }, { status: 500 });
+  }
+  if (
+    contentKey.length !== provided.length ||
+    !timingSafeEqual(contentKey, provided)
+  ) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 

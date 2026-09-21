@@ -215,10 +215,11 @@ export default function PasteEditor() {
       if (trimmedPassword) {
         const derived = await deriveKeyFromPassword(trimmedPassword);
         key = derived.key;
+        keyForBody = bytesToBase64(key);
         saltForBody = bytesToBase64(derived.salt);
       } else {
         key = await generateContentKey();
-        keyForBody = bytesToBase64(key);
+        if (files.length > 0) keyForBody = bytesToBase64(key);
       }
 
       const prepared = await Promise.all(
@@ -259,7 +260,6 @@ export default function PasteEditor() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           content,
-          password: trimmedPassword || undefined,
           burnAfterRead,
           expiresIn,
           contentKey: keyForBody,

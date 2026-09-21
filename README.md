@@ -101,7 +101,6 @@ pastes
   auth_tag       bytea              # GCM auth tag
   key_wrapped    bytea              # content key, encrypted with PASTE_MASTER_KEY
   salt           bytea              # PBKDF2 salt (password-protected only)
-  kdf_iterations int
   burn_after_read boolean
   consumed       boolean
   created_at     timestamptz

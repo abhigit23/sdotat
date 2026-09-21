@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { Readable } from "node:stream";
-import { createDecipheriv } from "node:crypto";
+import { createDecipheriv, timingSafeEqual } from "node:crypto";
 import { createInflate } from "node:zlib";
 import {
   getPasteByCode,
@@ -9,7 +9,7 @@ import {
   deletePaste,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
-import { unwrapKey, deriveKeyFromPassword } from "@/lib/crypto";
+import { unwrapKey } from "@/lib/crypto";
 import { checkReadLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -54,11 +54,19 @@ export async function GET(
 
   let contentKey: Buffer;
   try {
+    contentKey = unwrapKey(Buffer.from(paste.keyWrapped));
     if (paste.salt) {
-      const password = req.headers.get("x-paste-password") ?? "";
-      contentKey = deriveKeyFromPassword(password, Buffer.from(paste.salt)).key;
-    } else {
-      contentKey = unwrapKey(Buffer.from(paste.keyWrapped));
+      const providedRaw = req.headers.get("x-paste-key");
+      if (!providedRaw) {
+        return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+      }
+      const provided = Buffer.from(providedRaw, "base64");
+      if (
+        contentKey.length !== provided.length ||
+        !timingSafeEqual(contentKey, provided)
+      ) {
+        return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+      }
     }
   } catch {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });

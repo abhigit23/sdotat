@@ -70,7 +70,10 @@ export default async function PastePage({
         <span className="font-mono text-sm text-zinc-500">/{code}</span>
       </div>
       {paste.salt ? (
-        <PasswordGate code={code} />
+        <PasswordGate
+          code={code}
+          salt={Buffer.from(paste.salt).toString("base64")}
+        />
       ) : (
         <PasteReveal code={code} burnAfterRead={paste.burnAfterRead} />
       )}

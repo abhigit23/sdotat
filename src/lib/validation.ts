@@ -16,7 +16,6 @@ export const EXPIRY_OPTIONS = [
 export type ExpiryOption = (typeof EXPIRY_OPTIONS)[number];
 
 export const MAX_CONTENT_BYTES = 1_000_000; // 1 MB
-export const MAX_PASSWORD_LENGTH = 256;
 
 export const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per file
 export const MAX_FILES_PER_PASTE = 20;
@@ -45,21 +44,18 @@ export const createPasteSchema = z.object({
     .refine((v) => Buffer.byteLength(v, "utf8") <= MAX_CONTENT_BYTES, {
       message: `content exceeds ${MAX_CONTENT_BYTES / 1000} KB limit`,
     }),
-  password: z
-    .string()
-    .max(MAX_PASSWORD_LENGTH, "password too long")
-    .optional()
-    .default(""),
   burnAfterRead: z.boolean().optional().default(false),
   expiresIn: z.enum(EXPIRY_OPTIONS).optional().default("1h"),
-  // Base64 of the 32-byte content key (non-password pastes with files) so the
-  // server wraps and reuses the same key the client encrypted files with.
+  // Base64 of the 32-byte content key, sent for password-protected pastes and
+  // for pastes with file attachments so the server wraps/reuses the key the
+  // client generated.
   contentKey: z
     .string()
     .refine((v) => Buffer.from(v, "base64").length === 32, "invalid content key")
     .optional(),
-  // Base64 of the 16-byte PBKDF2 salt (password pastes with files) so the
-  // server derives the identical key the client used for files.
+  // Base64 of the 16-byte PBKDF2 salt (password-protected pastes). Stored as
+  // metadata so the client can re-derive the key on reveal; the server never
+  // derives itself.
   salt: z
     .string()
     .refine((v) => Buffer.from(v, "base64").length === 16, "invalid salt")

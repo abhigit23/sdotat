@@ -35,7 +35,6 @@ export const pastes = pgTable(
     authTag: bytea("auth_tag").notNull(),
     keyWrapped: bytea("key_wrapped").notNull(),
     salt: bytea("salt"),
-    kdfIterations: integer("kdf_iterations"),
     burnAfterRead: boolean("burn_after_read").default(false).notNull(),
     consumed: boolean("consumed").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })

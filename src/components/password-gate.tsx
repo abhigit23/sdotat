@@ -6,26 +6,43 @@ import CopyButton from "./copy-button";
 import PasswordInput from "./password-input";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
 import Spinner from "./spinner";
+import {
+  deriveKeyFromPassword,
+  base64ToBytes,
+  bytesToBase64,
+} from "@/lib/client-crypto";
 
 type ViewState =
   | { status: "locked" }
   | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number }
   | { status: "error"; message: string };
 
-export default function PasswordGate({ code }: { code: string }) {
+type Props = {
+  code: string;
+  salt: string;
+};
+
+export default function PasswordGate({ code, salt }: Props) {
   const [password, setPassword] = useState("");
   const [view, setView] = useState<ViewState>({ status: "locked" });
   const [loading, setLoading] = useState(false);
+  const [keyB64, setKeyB64] = useState("");
 
   async function handleSubmit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setView({ status: "locked" });
     try {
+      const derived = await deriveKeyFromPassword(
+        password,
+        base64ToBytes(salt)
+      );
+      const key = bytesToBase64(derived.key);
+      setKeyB64(key);
       const res = await fetch(`/api/pastes/${code}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ contentKey: key }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -73,7 +90,7 @@ export default function PasswordGate({ code }: { code: string }) {
         <pre className="max-h-[70vh] w-full overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
           {view.content}
         </pre>
-        <PasteFiles code={code} attachments={view.attachments} password={password} />
+        <PasteFiles code={code} attachments={view.attachments} contentKey={keyB64} />
       </div>
     );
   }

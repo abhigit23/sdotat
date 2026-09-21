@@ -2,7 +2,6 @@ import {
   createCipheriv,
   createDecipheriv,
   randomBytes,
-  pbkdf2Sync,
   createHash,
 } from "node:crypto";
 
@@ -10,7 +9,6 @@ const ALGO = "aes-256-gcm";
 const KEY_LEN = 32; // 256-bit
 const IV_LEN = 12;
 const TAG_LEN = 16;
-export const KDF_ITERATIONS = 210_000;
 
 function getMasterKey(): Buffer {
   const raw = process.env.PASTE_MASTER_KEY;
@@ -85,23 +83,4 @@ export function decryptContent(
   const decipher = createDecipheriv(ALGO, contentKey, payload.iv);
   decipher.setAuthTag(payload.authTag);
   return Buffer.concat([decipher.update(payload.ciphertext), decipher.final()]);
-}
-
-/**
- * Derives a 256-bit content key from a user-supplied password (PBKDF2-SHA256).
- * When a password protects a paste, the derived key encrypts the content
- * instead of a random key. A random per-paste salt is generated if not given.
- *
- * NOTE: PBKDF2 is used (not scrypt) to match browser WebCrypto
- * (`crypto.subtle` has no scrypt), so the key can be derived identically on
- * client and server for file attachment encryption/decryption.
- */
-export function deriveKeyFromPassword(
-  password: string,
-  salt?: Buffer,
-  iterations: number = KDF_ITERATIONS
-): { key: Buffer; salt: Buffer } {
-  const s = salt ?? randomBytes(16);
-  const key = pbkdf2Sync(password, s, iterations, KEY_LEN, "sha256");
-  return { key, salt: s };
 }

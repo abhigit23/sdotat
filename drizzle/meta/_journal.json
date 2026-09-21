@@ -15,6 +15,13 @@
       "when": 1788797631450,
       "tag": "0001_chemical_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790006628393,
+      "tag": "0002_aspiring_loa",
+      "breakpoints": true
     }
   ]
 }

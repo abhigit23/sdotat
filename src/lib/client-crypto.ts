@@ -58,6 +58,7 @@ function base64ToBytes(base64: string): Bytes {
   }
   return bytes;
 }
+export { base64ToBytes };
 
 /**
  * Generates a fresh random 256-bit content key.
@@ -74,7 +75,8 @@ export async function generateContentKey(): Promise<Bytes> {
  */
 export async function deriveKeyFromPassword(
   password: string,
-  salt?: Bytes
+  salt?: Bytes,
+  iterations: number = PBKDF2_ITERATIONS
 ): Promise<{ key: Bytes; salt: Bytes }> {
   const s = salt ?? crypto.getRandomValues(new Uint8Array(16));
   const baseKey = await crypto.subtle.importKey(
@@ -89,7 +91,7 @@ export async function deriveKeyFromPassword(
       name: "PBKDF2",
       hash: "SHA-256",
       salt: s,
-      iterations: PBKDF2_ITERATIONS,
+      iterations,
     },
     baseKey,
     KEY_LEN * 8
