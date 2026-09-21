@@ -7,7 +7,7 @@ const globalForDb = globalThis as unknown as {
 };
 
 function getClient() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.POSTGRES_URL;
   if (!connectionString) {
     return undefined;
   }
@@ -15,8 +15,9 @@ function getClient() {
   if (globalForDb.client) return globalForDb.client;
 
   const client = postgres(connectionString, {
-    ssl: connectionString.includes("sslmode=require") ? false : undefined,
+    ssl: "require",
     max: 10,
+    prepare: false,
   });
 
   if (process.env.NODE_ENV !== "production") globalForDb.client = client;

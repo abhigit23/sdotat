@@ -20,7 +20,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 | Framework | Next.js 16.3.3 (App Router), TypeScript |
 | UI | Tailwind CSS v4, Geist fonts (`next/font`), lucide-react icons |
 | ORM | Drizzle (+ postgres.js driver, drizzle-kit migrations) |
-| Database | PostgreSQL (remote) |
+| Database | PostgreSQL on Supabase |
 | Crypto | Node `crypto` / WebCrypto — AES-256-GCM, PBKDF2-SHA256, master-key wrapping |
 | Short codes | nanoid (base62, length 6) |
 | File storage | Vercel Blob (`@vercel/blob`) |
@@ -43,7 +43,8 @@ pnpm install
 Create `.env.local` (see `.env.example`):
 
 ```env
-DATABASE_URL=postgresql://user:password@host:5432/dbname
+POSTGRES_URL=postgresql://user:password@pooler.host:6543/dbname   # pooled (Supabase/Neon)
+POSTGRES_URL_NON_POOLING=postgresql://user:password@direct.host:5432/dbname   # for migrations
 PASTE_MASTER_KEY=<long random string; e.g. `openssl rand -hex 32`>
 APP_URL=http://localhost:3000
 KV_REST_API_URL=            # optional — rate limiting (Vercel KV / Upstash)
