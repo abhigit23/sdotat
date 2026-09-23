@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
 import {
-  getPasteByCode,
+  getPasteGateByCode,
   deletePaste,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
@@ -35,12 +36,14 @@ export default async function PastePage({
 }) {
   const { code } = await params;
 
-  const paste = await getPasteByCode(code);
+  const paste = await getPasteGateByCode(code);
   if (!paste) notFound();
 
   if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
-    await deleteAttachmentsBlobs(code);
-    await deletePaste(code);
+    after(async () => {
+      await deleteAttachmentsBlobs(code);
+      await deletePaste(code);
+    });
     notFound();
   }
 

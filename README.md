@@ -6,7 +6,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 
 - **Short URLs** — auto-generated 6-character base62 codes; the short URL renders the content directly.
 - **Server-side encryption** — AES-256-GCM. Each paste gets a random 256-bit key that is wrapped ("encrypted at rest") with a `PASTE_MASTER_KEY` before being stored, so a raw DB dump is not plaintext-readable.
-- **Optional password protection** — content key derived with PBKDF2-SHA256 (210,000 iterations, per-paste random salt).
+- **Optional password protection** — content key derived in the browser with PBKDF2-SHA256 (210,000 iterations, per-paste random salt). The server never receives or derives the password — only the derived key.
 - **Expiration** — 5 min, 10 min, 30 min, 1 h, 3 h, 6 h, 12 h, 1 d, 3 d.
 - **Burn after reading** — deletes the paste immediately after it is first revealed; an explicit "reveal" step prevents preview bots from burning pastes. (Burn-after-read pastes cannot have file attachments.)
 - **Encrypted file attachments** — up to 20 files per paste, 50 MB each, 100 MB total. Files are encrypted client-side (AES-GCM with the paste's content key) before being uploaded, then stored in Vercel Blob; the server decrypts on download.
@@ -62,6 +62,8 @@ pnpm drizzle-kit generate   # create a migration from schema changes
 pnpm drizzle-kit migrate    # apply migrations to the DB
 ```
 
+> `drizzle-kit` does not read `.env.local` — pass the connection string inline (e.g. set `POSTGRES_URL_NON_POOLING` in the shell before running `pnpm drizzle-kit migrate`).
+
 ### 4. Run
 
 ```bash
@@ -87,9 +89,9 @@ Open http://localhost:3000.
 
 ### Flow
 
-1. **Create** — `POST /api/pastes` validates input with Zod, encrypts text with AES-256-GCM using a random key (or a PBKDF2-derived key when password-protected), wraps the key with the master key, and stores ciphertext + metadata under a generated short code. File attachments are encrypted client-side, uploaded to Vercel Blob via `/api/pastes/upload-token`, and their metadata (plus per-file IV/auth tag) is stored in an `attachments` table. Returns `{ code, url }`.
-2. **Read** — the user opens `/[code]`. For password-protected pastes a gate is shown; the client posts the password to `/api/pastes/[code]/verify`. For all other pastes, the client posts to `/api/pastes/[code]/reveal`. The server unwraps/derives the key, decrypts, enforces expiry and burn-after-read, and returns the plaintext.
-3. **Download files** — `GET /api/pastes/[code]/files/[id]` fetches the encrypted blob, decrypts server-side, and streams it back with the original filename. On burn/expiry cleanup the blob objects are deleted as well.
+1. **Create** — the client derives a content key with PBKDF2-SHA256 in the browser for password-protected pastes, or uses a random WebCrypto key for file attachments, and sends it (base64) with the paste (for plain text-only pastes the server generates a fresh random key). `POST /api/pastes` validates input with Zod, encrypts the text with AES-256-GCM under that key, wraps the key with the master key, and inserts the row under a short code (retrying on the rare code collision — no preliminary existence check). File attachments are encrypted client-side, uploaded to Vercel Blob via `/api/pastes/upload-token`, and their metadata (plus per-file IV/auth tag) is stored in an `attachments` table. Returns `{ code, url }`.
+2. **Read** — the user opens `/[code]`. For password-protected pastes a gate is shown; the client re-derives the key in the browser (PBKDF2 with the stored per-paste salt) and posts `{ contentKey }` to `/api/pastes/[code]/verify`. The server unwraps the stored key and compares it to the submitted one with a constant-time check (`timingSafeEqual`) — no password or KDF ever runs on the server. For all other pastes, the client posts to `/api/pastes/[code]/reveal`. The server unwraps the key, decrypts, enforces expiry and burn-after-read, and returns the plaintext.
+3. **Download files** — `GET /api/pastes/[code]/files/[id]` fetches the encrypted blob, decrypts server-side, and streams it back with the original filename. Password-protected pastes require the `X-Paste-Key` header (the client's derived key), checked with the same constant-time comparison. On burn/expiry cleanup the blob objects are deleted as well.
 
 ### Data model
 
@@ -135,7 +137,7 @@ When KV env vars are absent, rate limiting is disabled (fine for local dev).
 
 - This is a **server-side** encryption model: the server holds the master key and can decrypt content. It is NOT zero-knowledge like PrivateBin — that trade-off buys short, typable URLs.
 - Ciphertext is encrypted at rest with a per-paste key that is itself wrapped by a master key stored only in env. File blobs are encrypted client-side before they ever reach object storage.
-- Content is always rendered through React's text-escaping; the only `dangerouslySetInnerHTML` usages are small nonce'd inline `<head>` scripts (theme init).
+- Content is always rendered through React's text-escaping; the only `dangerouslySetInnerHTML` usages are a few small nonce'd inline `<head>` scripts (a Trusted Types polyfill, theme init, and the `ld+json` structured data).
 - The XSS defense is the strict CSP: `nonce` + `strict-dynamic`, no `unsafe-inline`/`unsafe-eval`, `script-src-attr 'none'`.
 
 ## Deployment (Vercel)

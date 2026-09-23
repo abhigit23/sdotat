@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import CopyButton from "./copy-button";
 import ShareButton from "./share-button";
 import PasswordInput from "./password-input";
@@ -18,6 +18,8 @@ import {
   MAX_FILES_PER_PASTE,
   MAX_PASTE_TOTAL_BYTES,
 } from "@/lib/validation";
+import { formatBytes, formatFileCount } from "@/lib/format";
+import { mapWithConcurrency } from "@/lib/map-concurrency";
 
 const EXPIRY_OPTIONS = [
   { value: "5min", label: "5 minutes" },
@@ -33,43 +35,13 @@ const EXPIRY_OPTIONS = [
 
 type CreateResponse = { code: string; url: string };
 
-function formatBytes(n: number): string {
-  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${n} B`;
-}
-
-/**
- * Runs `fn` over `items` with at most `limit` concurrent promises. Results are
- * collected in input order.
- */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i], i);
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, worker),
-  );
-  return results;
-}
-
 const UPLOAD_CONCURRENCY = 3;
 
-type SubmitPhase = "idle" | "encrypting" | "uploading" | "saving";
+type SubmitPhase = "idle" | "processing" | "saving";
 
 const SUBMIT_LABELS: Record<SubmitPhase, string> = {
   idle: "Create paste",
-  encrypting: "Encrypting…",
-  uploading: "Uploading files…",
+  processing: "Processing files…",
   saving: "Creating paste…",
 };
 
@@ -206,7 +178,7 @@ export default function PasteEditor() {
         return;
       }
 
-      if (files.length > 0) setSubmitPhase("encrypting");
+      if (files.length > 0) setSubmitPhase("processing");
 
       const trimmedPassword = password.trim();
       let key: Uint8Array<ArrayBuffer>;
@@ -222,16 +194,14 @@ export default function PasteEditor() {
         if (files.length > 0) keyForBody = bytesToBase64(key);
       }
 
-      const prepared = await Promise.all(
-        files.map((f) => prepareFileForUpload(key, f)),
-      );
-
-      if (files.length > 0) setSubmitPhase("uploading");
-
+      // Encrypt each file immediately before its upload so at most
+      // UPLOAD_CONCURRENCY ciphertexts are held in memory at once and
+      // encryption overlaps with in-flight uploads.
       const fileMeta = await mapWithConcurrency(
-        prepared,
+        files,
         UPLOAD_CONCURRENCY,
-        async ({ bytes, meta }) => {
+        async (f) => {
+          const { bytes, meta } = await prepareFileForUpload(key, f);
           const blob = await upload(
             `files/${crypto.randomUUID()}`,
             new Blob([bytes]),
@@ -352,10 +322,22 @@ export default function PasteEditor() {
         <div className="flex flex-col gap-1.5 rounded-xl border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
           <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
             <span className="font-medium">Attachments (optional)</span>
-            <span className="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
-              {files.length > 0
-                ? `${files.length} file${files.length > 1 ? "s" : ""} selected`
-                : "Choose files"}
+            <span className="flex flex-wrap items-center justify-end gap-2">
+              {files.length > 0 && (
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {formatFileCount(files.length)} selected
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                {files.length > 0 ? (
+                  <>
+                    <Plus size={14} aria-hidden />
+                    Add more files
+                  </>
+                ) : (
+                  "Choose files"
+                )}
+              </span>
             </span>
             <input
               type="file"
@@ -393,7 +375,7 @@ export default function PasteEditor() {
                 ))}
                 <li className="flex items-center gap-2 px-2 py-1 text-xs text-zinc-500 dark:text-zinc-400">
                   <span className="min-w-0 flex-1">
-                    {files.length} file{files.length > 1 ? "s" : ""}
+                    {formatFileCount(files.length)}
                   </span>
                   <span className="w-16 shrink-0 text-right tabular-nums">
                     {formatBytes(totalBytes)} total
@@ -427,7 +409,7 @@ export default function PasteEditor() {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Password (optional)</span>
+            <span className="text-sm font-medium">Password (recommended)</span>
             <PasswordInput
               value={password}
               onChange={setPassword}

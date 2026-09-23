@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Eye } from "lucide-react";
-import CopyButton from "./copy-button";
-import PasteFiles, { type AttachmentMeta } from "./paste-files";
+import PasteContent from "./paste-content";
+import type { AttachmentMeta } from "./paste-files";
 import Spinner from "./spinner";
 
 type Props = {
@@ -48,33 +47,18 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
 
   if (view.status === "success") {
     return (
-      <div className="w-full">
-        <div className="mb-4 flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 sm:justify-start">
-            <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              {view.burn ? "Revealed once — this paste has been deleted" : "Paste content"}
-            </h2>
-            {!view.burn && (
-              <span aria-hidden className="text-xs text-zinc-400 dark:text-zinc-500">
-                ·
-              </span>
-            )}
-            {!view.burn && (
-              <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <Eye size={14} aria-hidden />
-                {view.views} view{view.views === 1 ? "" : "s"}
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <CopyButton text={view.content} />
-          </div>
-        </div>
-        <pre className="max-h-[70vh] w-full overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
-          {view.content}
-        </pre>
-        <PasteFiles code={code} attachments={view.attachments} />
-      </div>
+      <PasteContent
+        title={
+          view.burn
+            ? "Revealed once — this paste has been deleted"
+            : "Paste content"
+        }
+        burn={view.burn}
+        views={view.views}
+        content={view.content}
+        code={code}
+        attachments={view.attachments}
+      />
     );
   }
 

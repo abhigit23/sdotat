@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
   getPasteByCode,
   deletePaste,
   incrementViews,
+  claimPasteForView,
   getAttachmentsByCode,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
@@ -47,10 +48,12 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Expired -> delete + 404
+  // Expired -> clean up in the background + 404
   if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
-    await deleteAttachmentsBlobs(code);
-    await deletePaste(code);
+    after(async () => {
+      await deleteAttachmentsBlobs(code);
+      await deletePaste(code);
+    });
     return NextResponse.json({ error: "Expired" }, { status: 404 });
   }
 
@@ -80,6 +83,9 @@ export async function POST(
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 
+  // Fetch attachments in parallel with decryption.
+  const attachmentsPromise = getAttachmentsByCode(code);
+
   let plaintext: Buffer;
   try {
     plaintext = decryptContent(contentKey, {
@@ -91,16 +97,25 @@ export async function POST(
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 
-  await incrementViews(code);
-
-  const attachments = await getAttachmentsByCode(code);
+  const attachments = await attachmentsPromise;
 
   const isBurn = paste.burnAfterRead;
   if (isBurn) {
-    // Delete immediately so a refresh/prefetch cannot read it again.
-    await deleteAttachmentsBlobs(code);
-    await deletePaste(code);
+    // Atomically mark the paste consumed so a concurrent unlock cannot read
+    // it again; the physical delete is deferred until after the response.
+    const claimed = await claimPasteForView(code);
+    if (!claimed) {
+      return NextResponse.json({ error: "Gone" }, { status: 410 });
+    }
   }
+
+  after(async () => {
+    await incrementViews(code);
+    if (isBurn) {
+      await deleteAttachmentsBlobs(code);
+      await deletePaste(code);
+    }
+  });
 
   return NextResponse.json({
     content: plaintext.toString("utf8"),

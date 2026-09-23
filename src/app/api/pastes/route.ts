@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
-import { createPasteSchema, createPasteFilesSchema } from "@/lib/validation";
+import { createPasteSchema } from "@/lib/validation";
 import {
   encryptContent,
   generateContentKey,
@@ -35,15 +35,7 @@ export async function POST(req: NextRequest) {
     );
   }
   const input = parsed.data;
-
-  const filesParsed = createPasteFilesSchema.safeParse(input.files ?? []);
-  if (!filesParsed.success) {
-    return NextResponse.json(
-      { error: filesParsed.error.issues[0]?.message ?? "Invalid files" },
-      { status: 400 }
-    );
-  }
-  const files = filesParsed.data;
+  const files = input.files;
 
   if (input.burnAfterRead && files.length > 0) {
     return NextResponse.json(

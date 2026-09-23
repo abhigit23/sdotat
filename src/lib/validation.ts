@@ -1,6 +1,11 @@
 import { z } from "zod";
 
-z.config({ jitless: true });
+if (typeof window !== "undefined") {
+  // JIT validators compile with new Function, which the strict CSP reports in
+  // the browser. Keep jitless only where that CSP applies; the server (the hot
+  // safeParse path) has no CSP and uses the JIT.
+  z.config({ jitless: true });
+}
 
 export const EXPIRY_OPTIONS = [
   "5min",
@@ -63,18 +68,14 @@ export const createPasteSchema = z.object({
   files: z
     .array(fileEntrySchema)
     .max(MAX_FILES_PER_PASTE, `at most ${MAX_FILES_PER_PASTE} files per paste`)
+    .refine(
+      (files) =>
+        files.reduce((sum, f) => sum + f.size, 0) <= MAX_PASTE_TOTAL_BYTES,
+      { message: `total file size exceeds ${MAX_PASTE_TOTAL_BYTES / 1_000_000} MB` }
+    )
     .optional()
     .default([]),
 });
-
-export const createPasteFilesSchema = z
-  .array(fileEntrySchema)
-  .max(MAX_FILES_PER_PASTE, `at most ${MAX_FILES_PER_PASTE} files per paste`)
-  .refine(
-    (files) =>
-      files.reduce((sum, f) => sum + f.size, 0) <= MAX_PASTE_TOTAL_BYTES,
-    { message: `total file size exceeds ${MAX_PASTE_TOTAL_BYTES / 1_000_000} MB` }
-  );
 
 export type CreatePasteInput = z.infer<typeof createPasteSchema>;
 

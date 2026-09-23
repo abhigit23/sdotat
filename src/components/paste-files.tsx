@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { formatBytes } from "@/lib/format";
 
 export type AttachmentMeta = {
   id: string;
@@ -16,12 +17,6 @@ type Props = {
 };
 
 const DOWNLOAD_CONCURRENCY = 3;
-
-function formatBytes(n: number): string {
-  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${n} B`;
-}
 
 export default function PasteFiles({ code, attachments, contentKey }: Props) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
@@ -66,20 +61,33 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
         setBusyId(a.id, false);
         return;
       }
-      const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-      const chunks: Uint8Array[] = [];
+      const body = res.body;
+      if (!body) throw new Error("No response body");
+
+      // Collect the stream natively while throttling progress updates to
+      // integer percent changes — a per-chunk setState on a 50 MB file would
+      // trigger hundreds of React renders.
       let received = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.byteLength;
-        setProgress((prev) => ({
-          ...prev,
-          [a.id]: Math.min(100, Math.round((received / a.size) * 100)),
-        }));
-      }
-      const blob = new Blob(chunks as unknown as BlobPart[], { type: a.mime });
+      let lastPct = -1;
+      const progressStream = body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            received += chunk.byteLength;
+            const pct = Math.min(
+              100,
+              Math.round((received / a.size) * 100)
+            );
+            if (pct !== lastPct) {
+              lastPct = pct;
+              setProgress((prev) => ({ ...prev, [a.id]: pct }));
+            }
+            controller.enqueue(chunk);
+          },
+        })
+      );
+      const blob = await new Response(progressStream, {
+        headers: { "Content-Type": a.mime },
+      }).blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;

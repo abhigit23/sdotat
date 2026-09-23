@@ -1,7 +1,8 @@
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, and } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Paste, NewPaste, Attachment, NewAttachment } from "@/db/schema";
 import { shortId } from "./ids";
+import { mapWithConcurrency } from "./map-concurrency";
 
 const EXPIRY_MS: Record<string, number> = {
   "5min": 5 * 60 * 1000,
@@ -72,6 +73,34 @@ export async function getPasteByCode(code: string): Promise<Paste | null> {
 }
 
 /**
+ * The subset of a paste needed to render the `/[code]` gate page. Deliberately
+ * excludes the large columns (`ciphertext`, `iv`, `authTag`, `keyWrapped`) so
+ * the page doesn't transfer up to 1 MB of unused bytes per request.
+ */
+export type PasteGate = Pick<
+  Paste,
+  "code" | "salt" | "expiresAt" | "consumed" | "burnAfterRead"
+>;
+
+export async function getPasteGateByCode(
+  code: string
+): Promise<PasteGate | null> {
+  if (!db) return null;
+  const rows = await db
+    .select({
+      code: schema.pastes.code,
+      salt: schema.pastes.salt,
+      expiresAt: schema.pastes.expiresAt,
+      consumed: schema.pastes.consumed,
+      burnAfterRead: schema.pastes.burnAfterRead,
+    })
+    .from(schema.pastes)
+    .where(eq(schema.pastes.code, code))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
  * Deletes a paste row. Returns true if a row was removed.
  */
 export async function deletePaste(code: string): Promise<boolean> {
@@ -91,6 +120,26 @@ export async function incrementViews(code: string): Promise<void> {
     .update(schema.pastes)
     .set({ views: sql`${schema.pastes.views} + 1` })
     .where(eq(schema.pastes.code, code));
+}
+
+/**
+ * Atomically claims a burn-after-read paste for viewing: flips `consumed` to
+ * true only if it is still unread. Returns true if this caller won the claim
+ * and may reveal the content, false if another request already consumed it.
+ */
+export async function claimPasteForView(code: string): Promise<boolean> {
+  if (!db) return false;
+  const res = await db
+    .update(schema.pastes)
+    .set({ consumed: true })
+    .where(
+      and(
+        eq(schema.pastes.code, code),
+        eq(schema.pastes.burnAfterRead, true),
+        eq(schema.pastes.consumed, false)
+      )
+    );
+  return Number(res.count) > 0;
 }
 
 /**
@@ -173,6 +222,8 @@ export async function deleteBlob(blobPath: string): Promise<boolean> {
   }
 }
 
+const BLOB_DELETE_CONCURRENCY = 5;
+
 /**
  * Deletes all blob objects for a paste's attachments. Returns the count of
  * blobs deleted. Attachment rows are removed via the FK cascade.
@@ -180,9 +231,14 @@ export async function deleteBlob(blobPath: string): Promise<boolean> {
 export async function deleteAttachmentsBlobs(code: string): Promise<number> {
   if (!db) return 0;
   const attachments = await getAttachmentsByCode(code);
+  if (attachments.length === 0) return 0;
   let deleted = 0;
-  for (const a of attachments) {
-    if (await deleteBlob(a.blobPath)) deleted++;
-  }
+  await mapWithConcurrency(
+    attachments,
+    BLOB_DELETE_CONCURRENCY,
+    async (a) => {
+      if (await deleteBlob(a.blobPath)) deleted++;
+    }
+  );
   return deleted;
 }

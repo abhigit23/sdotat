@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { get } from "@vercel/blob";
 import { Readable } from "node:stream";
 import { createDecipheriv, timingSafeEqual } from "node:crypto";
@@ -7,6 +7,7 @@ import {
   getPasteByCode,
   getAttachmentById,
   deletePaste,
+  claimPasteForView,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
 import { unwrapKey } from "@/lib/crypto";
@@ -38,8 +39,10 @@ export async function GET(
   }
 
   if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
-    await deleteAttachmentsBlobs(code);
-    await deletePaste(code);
+    after(async () => {
+      await deleteAttachmentsBlobs(code);
+      await deletePaste(code);
+    });
     return NextResponse.json({ error: "Expired" }, { status: 404 });
   }
 
@@ -96,8 +99,17 @@ export async function GET(
 
     const isBurn = paste.burnAfterRead;
     if (isBurn) {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
+      // Burn-after-read pastes cannot have attachments, but if this ever
+      // happens, atomically consume the paste and delete it after the
+      // streamed response finishes instead of blocking the download.
+      const claimed = await claimPasteForView(code);
+      if (!claimed) {
+        return NextResponse.json({ error: "Gone" }, { status: 410 });
+      }
+      after(async () => {
+        await deleteAttachmentsBlobs(code);
+        await deletePaste(code);
+      });
     }
 
     const headers = new Headers();
