@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { Clock, Eye } from "lucide-react";
 import CopyButton from "./copy-button";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
 
@@ -12,6 +12,7 @@ type Props = {
   code: string;
   attachments: AttachmentMeta[];
   contentKey?: string;
+  expiresIn?: string;
 };
 
 export default function PasteContent({
@@ -22,6 +23,7 @@ export default function PasteContent({
   code,
   attachments,
   contentKey,
+  expiresIn,
 }: Props) {
   return (
     <div className="w-full">
@@ -40,6 +42,20 @@ export default function PasteContent({
               <Eye size={14} aria-hidden />
               {views} view{views === 1 ? "" : "s"}
             </p>
+          )}
+          {!burn && expiresIn && (
+            <>
+              <span
+                aria-hidden
+                className="text-xs text-zinc-400 dark:text-zinc-500"
+              >
+                ·
+              </span>
+              <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                <Clock size={12} aria-hidden />
+                Expires in {expiresIn}
+              </p>
+            </>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">

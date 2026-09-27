@@ -10,10 +10,11 @@ import {
   base64ToBytes,
   bytesToBase64,
 } from "@/lib/client-crypto";
+import { formatTimeUntil } from "@/lib/format";
 
 type ViewState =
   | { status: "locked" }
-  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number }
+  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number; expiresIn?: string }
   | { status: "error"; message: string };
 
 type Props = {
@@ -55,6 +56,9 @@ export default function PasswordGate({ code, salt }: Props) {
         burn: data.burnAfterRead,
         attachments: data.attachments ?? [],
         views: data.views ?? 0,
+        expiresIn: data.expiresAt
+          ? (formatTimeUntil(data.expiresAt) ?? undefined)
+          : undefined,
       });
     } catch {
       setView({ status: "error", message: "Network error" });
@@ -72,6 +76,7 @@ export default function PasswordGate({ code, salt }: Props) {
         code={code}
         attachments={view.attachments}
         contentKey={keyB64}
+        expiresIn={view.expiresIn}
       />
     );
   }
