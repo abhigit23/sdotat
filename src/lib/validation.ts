@@ -45,10 +45,11 @@ const fileEntrySchema = z.object({
 export const createPasteSchema = z.object({
   content: z
     .string()
-    .min(1, "content cannot be empty")
     .refine((v) => Buffer.byteLength(v, "utf8") <= MAX_CONTENT_BYTES, {
       message: `content exceeds ${MAX_CONTENT_BYTES / 1000} KB limit`,
-    }),
+    })
+    .optional()
+    .default(""),
   burnAfterRead: z.boolean().optional().default(false),
   expiresIn: z.enum(EXPIRY_OPTIONS).optional().default("1h"),
   // Base64 of the 32-byte content key, sent for password-protected pastes and
@@ -75,7 +76,12 @@ export const createPasteSchema = z.object({
     )
     .optional()
     .default([]),
-});
+})
+  // Text is optional for files-only pastes, but a paste needs one or the other.
+  .refine((p) => p.content.trim().length > 0 || p.files.length > 0, {
+    message: "Add some text or attach at least one file",
+    path: ["content"],
+  });
 
 export type CreatePasteInput = z.infer<typeof createPasteSchema>;
 

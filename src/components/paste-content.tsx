@@ -25,12 +25,13 @@ export default function PasteContent({
   contentKey,
   expiresIn,
 }: Props) {
+  const hasText = content.trim().length > 0;
   return (
     <div className="w-full">
       <div className="mb-4 flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
         <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 sm:justify-start">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            {title}
+            {hasText || burn ? title : "Shared files"}
           </h2>
           {!burn && (
             <span aria-hidden className="text-xs text-zinc-400 dark:text-zinc-500">
@@ -58,13 +59,13 @@ export default function PasteContent({
             </>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        {hasText && <div className="flex shrink-0 items-center gap-2">
           <CopyButton text={content} />
-        </div>
+        </div>}
       </div>
-      <pre className="max-h-[70vh] w-full overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
+      {hasText && <pre className="max-h-[70vh] w-full overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 dark:border-zinc-800 dark:bg-zinc-950">
         {content}
-      </pre>
+      </pre>}
       <PasteFiles code={code} attachments={attachments} contentKey={contentKey} />
     </div>
   );
