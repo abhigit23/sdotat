@@ -37,7 +37,13 @@ export async function POST(req: NextRequest) {
   const input = parsed.data;
   const files = input.files;
 
+  // The client uploads blobs before this request, so any rejection past this
+  // point must delete them or they are left orphaned in the store.
+  const discardUploads = () =>
+    Promise.all(files.map((f) => deleteBlob(f.pathname)));
+
   if (input.burnAfterRead && files.length > 0) {
+    await discardUploads();
     return NextResponse.json(
       { error: "Burn-after-read pastes cannot have file attachments" },
       { status: 400 }
@@ -76,6 +82,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     console.error("createPaste failed", e);
+    await discardUploads();
     return NextResponse.json({ error: "Failed to create paste" }, { status: 500 });
   }
 
@@ -95,9 +102,7 @@ export async function POST(req: NextRequest) {
       );
     } catch (e) {
       console.error("addAttachments failed", e);
-      for (const f of files) {
-        await deleteBlob(f.pathname);
-      }
+      await discardUploads();
       await deletePaste(paste.code);
       return NextResponse.json(
         { error: "Failed to save attachments" },

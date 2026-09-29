@@ -224,6 +224,54 @@ export async function deleteBlob(blobPath: string): Promise<boolean> {
 
 const BLOB_DELETE_CONCURRENCY = 5;
 
+/** Prefix the client uploads attachment blobs under (see paste-editor). */
+const ATTACHMENT_BLOB_PREFIX = "files/";
+
+/**
+ * Blobs younger than this are skipped by the orphan sweep: the client uploads
+ * files before POSTing the paste, so a fresh blob may simply not have its
+ * attachment row yet.
+ */
+const ORPHAN_GRACE_MS = 60 * 60 * 1000;
+
+/**
+ * Deletes attachment blobs that no attachment row references. These leak when
+ * the client uploads files but the paste is never created (tab closed, request
+ * rejected or failed), or when a blob delete failed after its row was removed.
+ * Used by the cleanup job. Returns the number of blobs deleted.
+ */
+export async function deleteOrphanBlobs(): Promise<number> {
+  if (!db || !process.env.BLOB_READ_WRITE_TOKEN) return 0;
+  const d = db;
+  const { list, del } = await import("@vercel/blob");
+  const cutoff = Date.now() - ORPHAN_GRACE_MS;
+  let deleted = 0;
+  let cursor: string | undefined;
+
+  do {
+    const page = await list({ prefix: ATTACHMENT_BLOB_PREFIX, cursor });
+    cursor = page.hasMore ? page.cursor : undefined;
+
+    const candidates = page.blobs
+      .filter((b) => new Date(b.uploadedAt).getTime() < cutoff)
+      .map((b) => b.pathname);
+    if (candidates.length === 0) continue;
+
+    const referenced = await d
+      .select({ blobPath: schema.attachments.blobPath })
+      .from(schema.attachments)
+      .where(inArray(schema.attachments.blobPath, candidates));
+    const keep = new Set(referenced.map((r) => r.blobPath));
+    const orphans = candidates.filter((p) => !keep.has(p));
+    if (orphans.length === 0) continue;
+
+    await del(orphans);
+    deleted += orphans.length;
+  } while (cursor);
+
+  return deleted;
+}
+
 /**
  * Deletes all blob objects for a paste's attachments. Returns the count of
  * blobs deleted. Attachment rows are removed via the FK cascade.
