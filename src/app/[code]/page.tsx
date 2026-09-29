@@ -8,6 +8,7 @@ import {
   deletePaste,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
+import { isValidCode } from "@/lib/ids";
 import PasswordGate from "@/components/password-gate";
 import PasteReveal from "@/components/paste-reveal";
 
@@ -39,7 +40,7 @@ export default async function PastePage({
 }) {
   const { code } = await params;
 
-  const paste = await getPasteGateByCode(code);
+  const paste = isValidCode(code) ? await getPasteGateByCode(code) : null;
   if (!paste) notFound();
 
   if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {

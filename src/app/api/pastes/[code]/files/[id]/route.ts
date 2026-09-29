@@ -4,22 +4,32 @@ import { Readable } from "node:stream";
 import { createDecipheriv, timingSafeEqual } from "node:crypto";
 import { createInflate } from "node:zlib";
 import {
-  getPasteByCode,
-  getAttachmentById,
+  getAttachmentForDownload,
   deletePaste,
   claimPasteForView,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
 import { unwrapKey } from "@/lib/crypto";
+import { isValidCode } from "@/lib/ids";
 import { checkReadLimit } from "@/lib/rate-limit";
+import { ATTACHMENT_ID } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALGO = "aes-256-gcm";
 
-function safeFilename(name: string): string {
-  return name.replace(/["\r\n]/g, "_");
+/**
+ * Content-Disposition value with an ASCII fallback `filename` and an RFC 5987
+ * `filename*` so non-ASCII names survive the download.
+ */
+function contentDisposition(name: string): string {
+  const ascii = name.replace(/[^\x20-\x7e]|["\\]/g, "_");
+  const encoded = encodeURIComponent(name).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
 export async function GET(
@@ -33,12 +43,17 @@ export async function GET(
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  const paste = await getPasteByCode(code);
-  if (!paste) {
+  if (!isValidCode(code) || !ATTACHMENT_ID.test(id)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
+  const row = await getAttachmentForDownload(code, id);
+  if (!row) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  const { attachment } = row;
+
+  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
     after(async () => {
       await deleteAttachmentsBlobs(code);
       await deletePaste(code);
@@ -46,19 +61,14 @@ export async function GET(
     return NextResponse.json({ error: "Expired" }, { status: 404 });
   }
 
-  if (paste.burnAfterRead && paste.consumed) {
+  if (row.burnAfterRead && row.consumed) {
     return NextResponse.json({ error: "Gone" }, { status: 410 });
-  }
-
-  const attachment = await getAttachmentById(code, id);
-  if (!attachment) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   let contentKey: Buffer;
   try {
-    contentKey = unwrapKey(Buffer.from(paste.keyWrapped));
-    if (paste.salt) {
+    contentKey = unwrapKey(Buffer.from(row.keyWrapped));
+    if (row.salt) {
       const providedRaw = req.headers.get("x-paste-key");
       if (!providedRaw) {
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
@@ -97,8 +107,7 @@ export async function GET(
         ? decrypted.pipe(createInflate())
         : decrypted;
 
-    const isBurn = paste.burnAfterRead;
-    if (isBurn) {
+    if (row.burnAfterRead) {
       // Burn-after-read pastes cannot have attachments, but if this ever
       // happens, atomically consume the paste and delete it after the
       // streamed response finishes instead of blocking the download.
@@ -112,12 +121,12 @@ export async function GET(
       });
     }
 
+    // The stored MIME type is uploader-supplied, so never serve it from this
+    // origin: the client already knows the real type from the paste metadata.
     const headers = new Headers();
-    headers.set("Content-Type", attachment.mime);
-    headers.set(
-      "Content-Disposition",
-      `attachment; filename="${safeFilename(attachment.filename)}"`
-    );
+    headers.set("Content-Type", "application/octet-stream");
+    headers.set("Content-Disposition", contentDisposition(attachment.filename));
+    headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
     headers.set("Cache-Control", "no-store");
     headers.set("X-Content-Type-Options", "nosniff");
 

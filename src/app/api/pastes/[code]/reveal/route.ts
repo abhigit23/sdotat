@@ -8,6 +8,7 @@ import {
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
 import { unwrapKey, decryptContent } from "@/lib/crypto";
+import { isValidCode } from "@/lib/ids";
 import { checkReadLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function POST(
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  const paste = await getPasteByCode(code);
+  const paste = isValidCode(code) ? await getPasteByCode(code) : null;
   if (!paste) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -101,5 +102,5 @@ export async function POST(
       mime: a.mime,
       size: a.size,
     })),
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

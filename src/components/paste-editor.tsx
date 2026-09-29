@@ -36,6 +36,8 @@ const EXPIRY_OPTIONS = [
 type CreateResponse = { code: string; url: string };
 
 const UPLOAD_CONCURRENCY = 3;
+// The password-derived key is all that protects a password paste.
+const MIN_PASSWORD_LENGTH = 8;
 
 type SubmitPhase = "idle" | "processing" | "saving";
 
@@ -178,9 +180,17 @@ export default function PasteEditor() {
         return;
       }
 
+      const trimmedPassword = password.trim();
+      if (trimmedPassword && trimmedPassword.length < MIN_PASSWORD_LENGTH) {
+        setError(
+          `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+        );
+        setLoading(false);
+        return;
+      }
+
       if (files.length > 0) setSubmitPhase("processing");
 
-      const trimmedPassword = password.trim();
       let key: Uint8Array<ArrayBuffer>;
       let keyForBody: string | undefined;
       let saltForBody: string | undefined;

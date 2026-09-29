@@ -5,6 +5,12 @@ import type { NextRequest } from "next/server";
 const UPS_ENABLED =
   !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
 
+if (!UPS_ENABLED && process.env.NODE_ENV === "production") {
+  console.warn(
+    "Rate limiting is disabled: KV_REST_API_URL / KV_REST_API_TOKEN are not set"
+  );
+}
+
 let createLimiter: Ratelimit | null = null;
 let readLimiter: Ratelimit | null = null;
 

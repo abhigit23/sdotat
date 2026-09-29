@@ -6,7 +6,7 @@ import {
   generateContentKey,
   wrapKey,
 } from "@/lib/crypto";
-import { createPaste, addAttachments, deleteBlob, deletePaste } from "@/lib/paste-service";
+import { createPaste, addAttachments, deleteBlobs, deletePaste } from "@/lib/paste-service";
 import { checkCreateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -39,8 +39,7 @@ export async function POST(req: NextRequest) {
 
   // The client uploads blobs before this request, so any rejection past this
   // point must delete them or they are left orphaned in the store.
-  const discardUploads = () =>
-    Promise.all(files.map((f) => deleteBlob(f.pathname)));
+  const discardUploads = () => deleteBlobs(files.map((f) => f.pathname));
 
   if (input.burnAfterRead && files.length > 0) {
     await discardUploads();

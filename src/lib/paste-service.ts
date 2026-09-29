@@ -2,7 +2,6 @@ import { eq, sql, inArray, and } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Paste, NewPaste, Attachment, NewAttachment } from "@/db/schema";
 import { shortId } from "./ids";
-import { mapWithConcurrency } from "./map-concurrency";
 
 const EXPIRY_MS: Record<string, number> = {
   "5min": 5 * 60 * 1000,
@@ -160,13 +159,16 @@ export async function deleteExpiredPastes(): Promise<number> {
 
     if (expired.length === 0) break;
 
-    for (const p of expired) {
-      await deleteAttachmentsBlobs(p.code);
-    }
+    const codes = expired.map((p) => p.code);
+    const blobs = await db
+      .select({ blobPath: schema.attachments.blobPath })
+      .from(schema.attachments)
+      .where(inArray(schema.attachments.pasteCode, codes));
+    await deleteBlobs(blobs.map((b) => b.blobPath));
 
     const res = await db
       .delete(schema.pastes)
-      .where(inArray(schema.pastes.code, expired.map((p) => p.code)));
+      .where(inArray(schema.pastes.code, codes));
 
     totalDeleted += Number(res.count);
   }
@@ -182,16 +184,32 @@ export async function getAttachmentsByCode(code: string): Promise<Attachment[]> 
     .where(eq(schema.attachments.pasteCode, code));
 }
 
-export async function getAttachmentById(
-  code: string,
-  id: string
-): Promise<Attachment | null> {
+/**
+ * Everything the file download route needs, in one query: the attachment plus
+ * the paste's key and state columns. Skips the paste's `ciphertext` (up to
+ * 1 MB), which a download never uses. `id` must be a valid UUID.
+ */
+export async function getAttachmentForDownload(code: string, id: string) {
   if (!db) return null;
   const rows = await db
-    .select()
+    .select({
+      keyWrapped: schema.pastes.keyWrapped,
+      salt: schema.pastes.salt,
+      expiresAt: schema.pastes.expiresAt,
+      burnAfterRead: schema.pastes.burnAfterRead,
+      consumed: schema.pastes.consumed,
+      attachment: schema.attachments,
+    })
     .from(schema.attachments)
+    .innerJoin(
+      schema.pastes,
+      eq(schema.attachments.pasteCode, schema.pastes.code)
+    )
     .where(
-      sql`${schema.attachments.id} = ${id}::uuid AND ${schema.attachments.pasteCode} = ${code}`
+      and(
+        eq(schema.attachments.id, id),
+        eq(schema.attachments.pasteCode, code)
+      )
     )
     .limit(1);
   return rows[0] ?? null;
@@ -206,23 +224,22 @@ export async function addAttachments(
 }
 
 /**
- * Deletes the Vercel Blob object backing a single attachment. Returns true if
- * the blob was deleted, false if no token is configured / blob missing.
- * The blob SDK is imported lazily to keep the create/read paste route bundles
- * small (it pulls in a large dependency graph).
+ * Deletes Vercel Blob objects in a single request. Returns the number of
+ * blobs deleted (0 if no token is configured or the request failed; the
+ * orphan sweep retries anything left behind). The blob SDK is imported lazily
+ * to keep the create/read paste route bundles small (it pulls in a large
+ * dependency graph).
  */
-export async function deleteBlob(blobPath: string): Promise<boolean> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return false;
+export async function deleteBlobs(blobPaths: string[]): Promise<number> {
+  if (blobPaths.length === 0 || !process.env.BLOB_READ_WRITE_TOKEN) return 0;
   try {
     const { del } = await import("@vercel/blob");
-    await del(blobPath);
-    return true;
+    await del(blobPaths);
+    return blobPaths.length;
   } catch {
-    return false;
+    return 0;
   }
 }
-
-const BLOB_DELETE_CONCURRENCY = 5;
 
 /** Prefix the client uploads attachment blobs under (see paste-editor). */
 const ATTACHMENT_BLOB_PREFIX = "files/";
@@ -243,7 +260,7 @@ const ORPHAN_GRACE_MS = 60 * 60 * 1000;
 export async function deleteOrphanBlobs(): Promise<number> {
   if (!db || !process.env.BLOB_READ_WRITE_TOKEN) return 0;
   const d = db;
-  const { list, del } = await import("@vercel/blob");
+  const { list } = await import("@vercel/blob");
   const cutoff = Date.now() - ORPHAN_GRACE_MS;
   let deleted = 0;
   let cursor: string | undefined;
@@ -265,8 +282,7 @@ export async function deleteOrphanBlobs(): Promise<number> {
     const orphans = candidates.filter((p) => !keep.has(p));
     if (orphans.length === 0) continue;
 
-    await del(orphans);
-    deleted += orphans.length;
+    deleted += await deleteBlobs(orphans);
   } while (cursor);
 
   return deleted;
@@ -279,14 +295,5 @@ export async function deleteOrphanBlobs(): Promise<number> {
 export async function deleteAttachmentsBlobs(code: string): Promise<number> {
   if (!db) return 0;
   const attachments = await getAttachmentsByCode(code);
-  if (attachments.length === 0) return 0;
-  let deleted = 0;
-  await mapWithConcurrency(
-    attachments,
-    BLOB_DELETE_CONCURRENCY,
-    async (a) => {
-      if (await deleteBlob(a.blobPath)) deleted++;
-    }
-  );
-  return deleted;
+  return deleteBlobs(attachments.map((a) => a.blobPath));
 }

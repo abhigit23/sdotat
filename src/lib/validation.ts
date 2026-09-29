@@ -28,8 +28,18 @@ export const MAX_PASTE_TOTAL_BYTES = 100 * 1024 * 1024; // 100 MB per paste
 
 const SAFE_FILENAME = /^[^/\\\0]+$/;
 
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+/** Pathname the client requests an upload token for: `files/<uuid>`. */
+export const UPLOAD_PATHNAME = new RegExp(`^files/${UUID}$`);
+
+/** Stored blob pathname: the upload pathname plus Blob's random suffix. */
+const BLOB_PATHNAME = new RegExp(`^files/${UUID}(-[A-Za-z0-9]+)?$`);
+
+export const ATTACHMENT_ID = new RegExp(`^${UUID}$`);
+
 const fileEntrySchema = z.object({
-  pathname: z.string().min(1).max(512),
+  pathname: z.string().regex(BLOB_PATHNAME, "invalid file path"),
   filename: z
     .string()
     .min(1)
