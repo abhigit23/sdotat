@@ -244,7 +244,7 @@ export async function getAttachmentForDownload(code: string, id: string) {
 }
 
 export async function addAttachments(
-  rows: Array<Omit<NewAttachment, "id" | "createdAt">>
+  rows: Array<Omit<NewAttachment, "id">>
 ): Promise<void> {
   if (!db) return;
   if (rows.length === 0) return;

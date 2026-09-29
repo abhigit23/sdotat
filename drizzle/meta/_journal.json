@@ -36,6 +36,20 @@
       "when": 1790693860599,
       "tag": "0004_encrypt_attachment_meta_compress_text",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790695855843,
+      "tag": "0005_drop_plaintext_attachment_meta",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790696210693,
+      "tag": "0006_drop_created_at",
+      "breakpoints": true
     }
   ]
 }

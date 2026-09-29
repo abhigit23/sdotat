@@ -40,9 +40,6 @@ export const pastes = pgTable(
     compression: text("compression").notNull().default("none"),
     burnAfterRead: boolean("burn_after_read").default(false).notNull(),
     consumed: boolean("consumed").default(false).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     views: integer("views").default(0).notNull(),
   },
@@ -56,19 +53,14 @@ export const attachments = pgTable(
     pasteCode: varchar("paste_code", { length: 12 })
       .notNull()
       .references(() => pastes.code, { onDelete: "cascade" }),
-    // Plaintext filename/mime only on rows written before `meta` existed;
-    // newer rows keep both encrypted in `meta` (see sealAttachmentMeta).
-    filename: text("filename"),
-    mime: text("mime"),
-    meta: bytea("meta"),
+    // Filename and MIME type, encrypted with the paste's content key (see
+    // sealAttachmentMeta).
+    meta: bytea("meta").notNull(),
     size: integer("size").notNull(),
     compression: text("compression").notNull().default("deflate"),
     blobPath: text("blob_path").notNull(),
     iv: bytea("iv").notNull(),
     authTag: bytea("auth_tag").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
   },
   (table) => [
     index("attachments_paste_code_idx").on(table.pasteCode),

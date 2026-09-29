@@ -80,19 +80,15 @@ export function sealAttachmentMeta(
 }
 
 /**
- * Returns an attachment's filename and MIME type, decrypting `meta` when
- * present. Rows written before metadata encryption keep them in plaintext.
+ * Decrypts an attachment's filename and MIME type from its `meta` column.
  */
 export function openAttachmentMeta(
   contentKey: Buffer,
-  row: { meta: Buffer | null; filename: string | null; mime: string | null }
+  row: { meta: Buffer }
 ): AttachmentMeta {
-  if (row.meta) {
-    return JSON.parse(
-      open(contentKey, Buffer.from(row.meta)).toString("utf8")
-    ) as AttachmentMeta;
-  }
-  return { filename: row.filename ?? "file", mime: row.mime ?? "" };
+  return JSON.parse(
+    open(contentKey, Buffer.from(row.meta)).toString("utf8")
+  ) as AttachmentMeta;
 }
 
 export type PasteCompression = "deflate" | "none";
