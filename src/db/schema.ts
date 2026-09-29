@@ -5,6 +5,7 @@ import {
   boolean,
   timestamp,
   index,
+  uniqueIndex,
   uuid,
   text,
   customType,
@@ -43,11 +44,8 @@ export const pastes = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     views: integer("views").default(0).notNull(),
   },
-  (table) => [
-    index("pastes_expires_at_idx").on(table.expiresAt),
-    index("pastes_created_at_idx").on(table.createdAt),
-  ]
-);
+  (table) => [index("pastes_expires_at_idx").on(table.expiresAt)]
+).enableRLS();
 
 export const attachments = pgTable(
   "attachments",
@@ -69,8 +67,11 @@ export const attachments = pgTable(
   },
   (table) => [
     index("attachments_paste_code_idx").on(table.pasteCode),
+    // One row per blob, so a paste can't claim another paste's file. Also
+    // serves the orphan sweep's blob_path lookups.
+    uniqueIndex("attachments_blob_path_idx").on(table.blobPath),
   ]
-);
+).enableRLS();
 
 export type Paste = typeof pastes.$inferSelect;
 export type NewPaste = typeof pastes.$inferInsert;

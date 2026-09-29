@@ -22,6 +22,13 @@
       "when": 1790006628393,
       "tag": "0002_aspiring_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790692881751,
+      "tag": "0003_harden_rls_indexes",
+      "breakpoints": true
     }
   ]
 }

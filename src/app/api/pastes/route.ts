@@ -100,9 +100,19 @@ export async function POST(req: NextRequest) {
         }))
       );
     } catch (e) {
+      await deletePaste(paste.code);
+      // A unique violation on blob_path means a file already belongs to
+      // another paste; deleting it would break that paste. Leave any genuinely
+      // unreferenced blobs to the orphan sweep.
+      const err = e as { code?: string; cause?: { code?: string } };
+      if ((err.code ?? err.cause?.code) === "23505") {
+        return NextResponse.json(
+          { error: "File is already attached to another paste" },
+          { status: 409 }
+        );
+      }
       console.error("addAttachments failed", e);
       await discardUploads();
-      await deletePaste(paste.code);
       return NextResponse.json(
         { error: "Failed to save attachments" },
         { status: 500 }
