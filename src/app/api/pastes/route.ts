@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
 import { createPasteSchema } from "@/lib/validation";
 import {
-  encryptContent,
+  encryptPasteText,
   generateContentKey,
+  sealAttachmentMeta,
   wrapKey,
 } from "@/lib/crypto";
-import { createPaste, addAttachments, deleteBlobs, deletePaste } from "@/lib/paste-service";
+import {
+  createPaste,
+  addAttachments,
+  deleteBlobs,
+  deletePaste,
+  describeDbError,
+  pgErrorCode,
+} from "@/lib/paste-service";
 import { checkCreateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -61,9 +69,9 @@ export async function POST(req: NextRequest) {
     contentKey = generateContentKey();
   }
 
-  const { ciphertext, iv, authTag } = encryptContent(
+  const { ciphertext, iv, authTag, compression } = encryptPasteText(
     contentKey,
-    Buffer.from(input.content, "utf8")
+    input.content
   );
 
   const keyWrapped = wrapKey(contentKey);
@@ -74,13 +82,14 @@ export async function POST(req: NextRequest) {
       ciphertext,
       iv,
       authTag,
+      compression,
       keyWrapped,
       salt,
       burnAfterRead: input.burnAfterRead,
       expiresIn: input.expiresIn,
     });
   } catch (e) {
-    console.error("createPaste failed", e);
+    console.error("createPaste failed", describeDbError(e));
     await discardUploads();
     return NextResponse.json({ error: "Failed to create paste" }, { status: 500 });
   }
@@ -90,8 +99,10 @@ export async function POST(req: NextRequest) {
       await addAttachments(
         files.map((f) => ({
           pasteCode: paste.code,
-          filename: f.filename,
-          mime: f.mime,
+          meta: sealAttachmentMeta(contentKey, {
+            filename: f.filename,
+            mime: f.mime,
+          }),
           size: f.size,
           compression: f.compression,
           blobPath: f.pathname,
@@ -104,14 +115,13 @@ export async function POST(req: NextRequest) {
       // A unique violation on blob_path means a file already belongs to
       // another paste; deleting it would break that paste. Leave any genuinely
       // unreferenced blobs to the orphan sweep.
-      const err = e as { code?: string; cause?: { code?: string } };
-      if ((err.code ?? err.cause?.code) === "23505") {
+      if (pgErrorCode(e) === "23505") {
         return NextResponse.json(
           { error: "File is already attached to another paste" },
           { status: 409 }
         );
       }
-      console.error("addAttachments failed", e);
+      console.error("addAttachments failed", describeDbError(e));
       await discardUploads();
       return NextResponse.json(
         { error: "Failed to save attachments" },

@@ -29,6 +29,13 @@
       "when": 1790692881751,
       "tag": "0003_harden_rls_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790693860599,
+      "tag": "0004_encrypt_attachment_meta_compress_text",
+      "breakpoints": true
     }
   ]
 }

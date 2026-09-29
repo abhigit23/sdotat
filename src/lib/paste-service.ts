@@ -15,10 +15,30 @@ const EXPIRY_MS: Record<string, number> = {
   "3d": 3 * 24 * 60 * 60 * 1000,
 };
 
+/**
+ * Postgres error code (e.g. "23505") from a query error. Drizzle wraps driver
+ * errors, keeping the original as `cause`.
+ */
+export function pgErrorCode(e: unknown): string | undefined {
+  const err = e as { code?: string; cause?: { code?: string } };
+  return err?.code ?? err?.cause?.code;
+}
+
+/**
+ * Loggable summary of a query error. Drizzle's own message embeds every query
+ * parameter (ciphertext, blob paths), which must not end up in logs.
+ */
+export function describeDbError(e: unknown): string {
+  const cause = (e as { cause?: { message?: string } })?.cause;
+  const message = cause?.message ?? (e as Error)?.message?.split("\n")[0];
+  return `${pgErrorCode(e) ?? "unknown"}: ${message ?? "unknown error"}`;
+}
+
 export type CreatePasteArgs = {
   ciphertext: Buffer;
   iv: Buffer;
   authTag: Buffer;
+  compression: string;
   keyWrapped: Buffer;
   salt?: Buffer | null;
   burnAfterRead: boolean;
@@ -30,7 +50,9 @@ export function getExpiryDate(expiresIn: string): Date | null {
   return ms ? new Date(Date.now() + ms) : null;
 }
 
-export async function createPaste(args: CreatePasteArgs): Promise<Paste> {
+export async function createPaste(
+  args: CreatePasteArgs
+): Promise<{ code: string }> {
   if (!db) throw new Error("Database not configured");
   const d = db;
   const expiresAt = getExpiryDate(args.expiresIn);
@@ -42,6 +64,7 @@ export async function createPaste(args: CreatePasteArgs): Promise<Paste> {
       ciphertext: args.ciphertext,
       iv: args.iv,
       authTag: args.authTag,
+      compression: args.compression,
       keyWrapped: args.keyWrapped,
       salt: args.salt ?? null,
       burnAfterRead: args.burnAfterRead,
@@ -51,10 +74,15 @@ export async function createPaste(args: CreatePasteArgs): Promise<Paste> {
     };
 
     try {
-      const rows = await d.insert(schema.pastes).values(row).returning();
+      // Return only the code: the full row would echo back up to 1 MB of
+      // ciphertext.
+      const rows = await d
+        .insert(schema.pastes)
+        .values(row)
+        .returning({ code: schema.pastes.code });
       return rows[0];
     } catch (e) {
-      if ((e as { code?: string }).code !== "23505") throw e;
+      if (pgErrorCode(e) !== "23505") throw e;
     }
   }
 

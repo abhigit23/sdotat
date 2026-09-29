@@ -36,6 +36,8 @@ export const pastes = pgTable(
     authTag: bytea("auth_tag").notNull(),
     keyWrapped: bytea("key_wrapped").notNull(),
     salt: bytea("salt"),
+    // "deflate" when the text was compressed before encryption.
+    compression: text("compression").notNull().default("none"),
     burnAfterRead: boolean("burn_after_read").default(false).notNull(),
     consumed: boolean("consumed").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -54,8 +56,11 @@ export const attachments = pgTable(
     pasteCode: varchar("paste_code", { length: 12 })
       .notNull()
       .references(() => pastes.code, { onDelete: "cascade" }),
-    filename: text("filename").notNull(),
-    mime: text("mime").notNull(),
+    // Plaintext filename/mime only on rows written before `meta` existed;
+    // newer rows keep both encrypted in `meta` (see sealAttachmentMeta).
+    filename: text("filename"),
+    mime: text("mime"),
+    meta: bytea("meta"),
     size: integer("size").notNull(),
     compression: text("compression").notNull().default("deflate"),
     blobPath: text("blob_path").notNull(),

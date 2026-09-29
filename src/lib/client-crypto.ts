@@ -23,9 +23,11 @@ const PBKDF2_ITERATIONS = 210_000;
 type Bytes = Uint8Array<ArrayBuffer>;
 
 /**
- * Compresses a Uint8Array using the browser-native "deflate" CompressionStream.
- * Falls back to returning the input unchanged if CompressionStream is
- * unavailable, in which case compression is reported as not applied.
+ * Compresses a Uint8Array using the browser-native "deflate" CompressionStream,
+ * keeping the result only when it is smaller (matching the server's handling
+ * of paste text). Already-compressed formats (JPEG, ZIP, MP4, ...) usually
+ * grow, so they are stored as-is. Also returns the input unchanged if
+ * CompressionStream is unavailable.
  */
 export async function compressDeflate(
   bytes: Bytes
@@ -37,8 +39,10 @@ export async function compressDeflate(
   const stream = new Blob([bytes]).stream().pipeThrough(
     new CompressionStream("deflate")
   );
-  const buf = await new Response(stream).arrayBuffer();
-  return { data: new Uint8Array(buf), compressed: true };
+  const deflated = new Uint8Array(await new Response(stream).arrayBuffer());
+  return deflated.length < bytes.length
+    ? { data: deflated, compressed: true }
+    : { data: bytes, compressed: false };
 }
 
 function bytesToBase64(bytes: Bytes): string {

@@ -7,7 +7,11 @@ import {
   getAttachmentsByCode,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
-import { unwrapKey, decryptContent } from "@/lib/crypto";
+import {
+  unwrapKey,
+  decryptPasteText,
+  openAttachmentMeta,
+} from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
 import { checkReadLimit } from "@/lib/rate-limit";
 
@@ -60,12 +64,13 @@ export async function POST(
     return NextResponse.json({ error: "Invalid paste" }, { status: 500 });
   }
 
-  let plaintext: Buffer;
+  let plaintext: string;
   try {
-    plaintext = decryptContent(contentKey, {
+    plaintext = decryptPasteText(contentKey, {
       ciphertext: Buffer.from(paste.ciphertext),
       iv: Buffer.from(paste.iv),
       authTag: Buffer.from(paste.authTag),
+      compression: paste.compression,
     });
   } catch {
     return NextResponse.json({ error: "Decryption failed" }, { status: 500 });
@@ -92,14 +97,13 @@ export async function POST(
   });
 
   return NextResponse.json({
-    content: plaintext.toString("utf8"),
+    content: plaintext,
     burnAfterRead: isBurn,
     expiresAt: paste.expiresAt?.toISOString() ?? null,
     views: paste.views + 1,
     attachments: attachments.map((a) => ({
+      ...openAttachmentMeta(contentKey, a),
       id: a.id,
-      filename: a.filename,
-      mime: a.mime,
       size: a.size,
     })),
   }, { headers: { "Cache-Control": "no-store" } });

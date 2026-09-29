@@ -9,7 +9,7 @@ import {
   claimPasteForView,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
-import { unwrapKey } from "@/lib/crypto";
+import { unwrapKey, openAttachmentMeta } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
 import { checkReadLimit } from "@/lib/rate-limit";
 import { ATTACHMENT_ID } from "@/lib/validation";
@@ -125,7 +125,8 @@ export async function GET(
     // origin: the client already knows the real type from the paste metadata.
     const headers = new Headers();
     headers.set("Content-Type", "application/octet-stream");
-    headers.set("Content-Disposition", contentDisposition(attachment.filename));
+    const { filename } = openAttachmentMeta(contentKey, attachment);
+    headers.set("Content-Disposition", contentDisposition(filename));
     headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
     headers.set("Cache-Control", "no-store");
     headers.set("X-Content-Type-Options", "nosniff");
