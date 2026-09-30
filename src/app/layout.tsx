@@ -79,14 +79,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
       </head>
-      <body className="flex min-h-full flex-col bg-zinc-50 font-sans dark:bg-zinc-950">
+      {/* Exactly one viewport tall: pages fill it and scroll inside their own
+          regions. overflow-y-auto is only a last resort for extremely small
+          windows where the minimum content cannot fit. */}
+      <body className="flex h-dvh flex-col overflow-y-auto bg-zinc-50 font-sans dark:bg-zinc-950">
         {children}
         <ThemeToggle />
-        <footer className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-4 py-6 text-center text-xs text-zinc-400">
-          <span className="text-zinc-500 dark:text-zinc-400">
+        <footer className="flex shrink-0 flex-wrap items-center justify-center gap-x-2 px-4 py-3 text-center text-xs text-zinc-500 short:py-1.5 tiny:hidden">
+          <span className="text-zinc-500 short:hidden dark:text-zinc-400">
             &copy; {new Date().getFullYear()} s.at — server-side encrypted pastes
           </span>
-          <span aria-hidden className="text-zinc-300 dark:text-zinc-600">
+          <span
+            aria-hidden
+            className="text-zinc-300 short:hidden dark:text-zinc-600"
+          >
             ·
           </span>
           <a

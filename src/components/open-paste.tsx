@@ -75,20 +75,23 @@ export default function OpenPaste() {
               setError(null);
             }}
             placeholder="Enter paste code or link"
-            className="min-w-0 flex-1 bg-white px-4 py-2.5 text-sm outline-none placeholder:text-zinc-400 dark:bg-zinc-900 dark:placeholder:text-zinc-500"
-            autoFocus
+            className="min-w-0 flex-1 bg-white px-4 py-2.5 short:py-2 tiny:py-1.5 text-sm outline-none placeholder:text-zinc-500 dark:bg-zinc-900 dark:placeholder:text-zinc-400"
           />
           <button
             type="submit"
             disabled={loading}
-            className="flex shrink-0 items-center gap-1 bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1 bg-blue-600 px-4 py-2.5 short:py-2 tiny:py-1.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
           >
             Open
             {loading ? <Spinner /> : <ArrowRight size={14} />}
           </button>
         </div>
       </fieldset>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-red-600">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

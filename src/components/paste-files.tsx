@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { Download } from "lucide-react";
+import FileIcon from "./file-icon";
+import { saveBlob } from "@/lib/download";
 import { formatBytes, formatFileCount } from "@/lib/format";
 import { mapWithConcurrency } from "@/lib/map-concurrency";
 import { createZip, dedupeNames } from "@/lib/zip";
@@ -81,17 +83,6 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
     return new Response(progressStream, {
       headers: { "Content-Type": a.mime },
     }).blob();
-  }
-
-  function saveBlob(blob: Blob, filename: string) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
   }
 
   async function download(a: AttachmentMeta) {
@@ -174,8 +165,8 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
   const totalSize = attachments.reduce((sum, a) => sum + a.size, 0);
 
   return (
-    <div className="mt-4 w-full">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+    <div className="mt-3 w-full shrink-0 short:mt-2">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 short:mb-1">
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
           Attachments ({attachments.length})
         </h2>
@@ -205,10 +196,15 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
           </button>
         )}
       </div>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <ul className="flex flex-col gap-2">
+      {error && (
+        <p role="alert" className="mb-2 text-sm text-red-600">
+          {error}
+        </p>
+      )}
+      {/* Many attachments scroll here instead of growing the page. */}
+      <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto short:max-h-28">
         {attachments.map((a) => (
-          <li key={a.id} className="relative overflow-hidden rounded-md">
+          <li key={a.id} className="relative shrink-0 overflow-hidden rounded-md">
             <button
               type="button"
               onClick={() => runWhenReady(() => download(a))}
@@ -222,7 +218,12 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
                   style={{ width: `${progress[a.id]}%` }}
                 />
               ) : null}
-              <span className="relative min-w-0 truncate font-mono">
+              <FileIcon
+                name={a.filename}
+                mime={a.mime}
+                className="relative shrink-0 text-zinc-500 dark:text-zinc-400"
+              />
+              <span className="relative min-w-0 flex-1 truncate font-mono">
                 {a.filename}
               </span>
               <span className="relative shrink-0 text-xs text-zinc-500 dark:text-zinc-400">

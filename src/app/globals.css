@@ -2,6 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Short viewports (small phones, landscape): pages trade helper text and
+   spacing for height so nothing needs a page-level vertical scroll. */
+@custom-variant short (@media (max-height: 700px));
+/* Landscape phones and similar: compact further (defined after `short` so it wins). */
+@custom-variant tiny (@media (max-height: 420px));
+
 @font-face {
   font-family: "text-security-disc";
   src: url("./fonts/text-security-disc-compat.eot");

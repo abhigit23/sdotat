@@ -26,9 +26,19 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-1 flex-col px-4 py-8 sm:px-6">
+    // This root is the one last-resort scroller (see the home page).
+    <div
+      data-page-scroll
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6 short:py-2 tiny:py-1"
+    >
       {header}
-      <div className="mx-auto my-auto w-full max-w-3xl">{children}</div>
+      {/* Centered while small (auto margins). When tall, min-h-0 lets the
+          content shrink to fit and its text area scrolls inside itself. */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto my-auto flex min-h-0 w-full max-w-3xl flex-col">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -67,7 +77,7 @@ export default async function PastePage({
   return (
     <Shell
       header={
-        <div className="mb-4 flex items-center justify-between pr-12">
+        <div className="mb-3 flex shrink-0 items-center justify-between pr-12 short:mb-1 tiny:mb-0">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"

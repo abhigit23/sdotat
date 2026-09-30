@@ -4,7 +4,6 @@ import { useState } from "react";
 import PasteContent from "./paste-content";
 import type { AttachmentMeta } from "./paste-files";
 import Spinner from "./spinner";
-import { formatTimeUntil } from "@/lib/format";
 
 type Props = {
   code: string;
@@ -13,7 +12,7 @@ type Props = {
 
 type ViewState =
   | { status: "waiting" }
-  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number; expiresIn?: string; password?: string }
+  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number; expiresAt?: string }
   | { status: "error"; message: string };
 
 export default function PasteReveal({ code, burnAfterRead }: Props) {
@@ -39,9 +38,7 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         burn: data.burnAfterRead,
         attachments: data.attachments ?? [],
         views: data.views ?? 0,
-        expiresIn: data.expiresAt
-          ? (formatTimeUntil(data.expiresAt) ?? undefined)
-          : undefined,
+        expiresAt: data.expiresAt ?? undefined,
       });
     } catch {
       setView({ status: "error", message: "Network error" });
@@ -62,7 +59,7 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         content={view.content}
         code={code}
         attachments={view.attachments}
-        expiresIn={view.expiresIn}
+        expiresAt={view.expiresAt}
       />
     );
   }
@@ -81,7 +78,9 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         </p>
       )}
       {view.status === "error" && (
-        <p className="text-sm text-red-600">{view.message}</p>
+        <p role="alert" className="text-sm text-red-600">
+          {view.message}
+        </p>
       )}
       <button
         type="button"
