@@ -572,7 +572,7 @@ export default function PasteEditor() {
           )}
         </div>
 
-        <div className="grid shrink-0 grid-cols-1 gap-2 short:max-sm:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 tiny:grid-cols-3">
+        <div className="grid shrink-0 grid-cols-1 gap-2 short:max-sm:grid-cols-[0.7fr_1.3fr] sm:grid-cols-2 md:grid-cols-3 tiny:grid-cols-3">
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium tiny:sr-only">Expiration</span>
             <select
