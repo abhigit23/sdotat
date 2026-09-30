@@ -85,7 +85,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex h-dvh flex-col overflow-y-auto bg-zinc-50 font-sans dark:bg-zinc-950">
         {children}
         <ThemeToggle />
-        <footer className="flex shrink-0 flex-wrap items-center justify-center gap-x-2 px-4 py-3 text-center text-xs text-zinc-500 short:py-1.5 tiny:hidden">
+        <footer className="flex shrink-0 flex-wrap items-center justify-center gap-x-2 px-4 py-3 text-center text-xs text-zinc-500 tiny:hidden">
           <span className="text-zinc-500 short:hidden dark:text-zinc-400">
             &copy; {new Date().getFullYear()} s.at — server-side encrypted pastes
           </span>
