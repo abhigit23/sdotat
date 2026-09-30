@@ -641,8 +641,7 @@ export default function PasteEditor() {
             <span className="flex flex-col">
               <span className="text-sm font-medium">Burn after reading</span>
               <span className="text-xs text-zinc-500 short:hidden dark:text-zinc-400">
-                Deleted for good the first time someone opens it. Can&apos;t
-                be combined with attachments.
+                Deleted after first opening. Can&apos;t be used with attachments.
               </span>
               {files.length > 0 && (
                 <span className="text-xs text-amber-600 short:hidden dark:text-amber-400">
