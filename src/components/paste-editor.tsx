@@ -45,6 +45,9 @@ type CreateResult = {
 };
 
 const UPLOAD_CONCURRENCY = 3;
+// Files above this are sent as 8 MB multipart chunks so a dropped connection
+// only retries the failed chunk instead of restarting the whole file.
+const MULTIPART_THRESHOLD_BYTES = 8 * 1024 * 1024;
 // The password-derived key is all that protects a password paste.
 const MIN_PASSWORD_LENGTH = 8;
 // Below this many characters the text cannot approach the byte limit (at most
@@ -285,7 +288,8 @@ export default function PasteEditor() {
       const uploadTotal = Math.max(totalBytes, 1);
       let lastPct = 0;
       const report = (index: number, pct: number) => {
-        filePct[index] = pct;
+        // A retried chunk can briefly report lower progress; never go back.
+        filePct[index] = Math.max(filePct[index], pct);
         const overall = Math.floor(
           filePct.reduce((sum, p, i) => sum + p * files[i].size, 0) /
             uploadTotal,
@@ -314,6 +318,7 @@ export default function PasteEditor() {
               access: "private",
               contentType: "application/octet-stream",
               handleUploadUrl: "/api/pastes/upload-token",
+              multipart: bytes.byteLength > MULTIPART_THRESHOLD_BYTES,
               abortSignal: controller.signal,
               onUploadProgress: ({ percentage }) => report(i, percentage),
             },
