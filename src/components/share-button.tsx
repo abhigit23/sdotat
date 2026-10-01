@@ -46,7 +46,13 @@ export default function ShareButton({
       className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
     >
       <Share2 size={14} aria-hidden />
-      {copied ? "Copied!" : label}
+      {/* See CopyButton: reserve the wider label's width to avoid shifts. */}
+      <span className="grid">
+        <span className="[grid-area:1/1]">{copied ? "Copied!" : label}</span>
+        <span aria-hidden className="invisible [grid-area:1/1]">
+          {copied ? label : "Copied!"}
+        </span>
+      </span>
     </button>
   );
 }

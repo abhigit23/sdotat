@@ -32,7 +32,16 @@ export default function CopyButton({
       className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
     >
       {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-      <span aria-live="polite">{copied ? "Copied!" : label}</span>
+      {/* Both labels share one grid cell so the button keeps the wider
+          width and neighbours don't shift when the text swaps. */}
+      <span className="grid">
+        <span aria-live="polite" className="[grid-area:1/1]">
+          {copied ? "Copied!" : label}
+        </span>
+        <span aria-hidden className="invisible [grid-area:1/1]">
+          {copied ? label : "Copied!"}
+        </span>
+      </span>
     </button>
   );
 }
