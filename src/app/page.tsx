@@ -10,11 +10,13 @@ export default async function Home() {
     // when even the compact layout cannot fit (e.g. a phone held sideways).
     <main
       data-page-scroll
-      className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-3 sm:px-6 short:py-2 tiny:pr-14"
+      className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 pb-3 pt-4 sm:px-6 short:pb-2 tiny:pr-14 tiny:pt-2"
     >
       <div className="flex w-full max-w-3xl flex-1 flex-col">
         <header className="mb-3 shrink-0 text-center short:mb-2 tiny:hidden">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl short:text-xl tiny:text-base">
+          {/* leading-9 + the main's pt-4 put the title on the theme
+              toggle's midline (fixed top-4, h-9). */}
+          <h1 className="text-2xl leading-9 font-bold tracking-tight sm:text-3xl short:text-xl tiny:text-base">
             s.at
           </h1>
           <p className="mt-1 text-sm text-zinc-500 short:hidden dark:text-zinc-400">
