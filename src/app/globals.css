@@ -68,6 +68,48 @@ body {
   color: var(--foreground);
 }
 
+/* Slim, theme-aware scrollbars. */
+:root {
+  --scrollbar-thumb: #d4d4d8; /* zinc-300 */
+  --scrollbar-thumb-hover: #a1a1aa; /* zinc-400 */
+}
+
+.dark {
+  --scrollbar-thumb: #3f3f46; /* zinc-700 */
+  --scrollbar-thumb-hover: #52525b; /* zinc-600 */
+}
+
+/* Chromium / Safari: full control (rounded thumb, hover state). */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox (no ::-webkit-scrollbar): standard properties. Gated so Chromium
+   121+ doesn't apply them, which would disable the rules above. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+
 .password-mask {
   -webkit-text-security: disc;
   text-security: disc;
