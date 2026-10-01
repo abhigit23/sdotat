@@ -77,7 +77,7 @@ export default async function PastePage({
   return (
     <Shell
       header={
-        <div className="mb-3 flex shrink-0 items-center justify-between pr-12 short:mb-1 tiny:mb-0">
+        <div className="mb-3 flex h-9 shrink-0 items-center justify-between pr-12 short:mb-1 short:mt-2 tiny:mb-0 tiny:mt-3">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
