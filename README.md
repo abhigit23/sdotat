@@ -11,6 +11,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 - **Burn after reading** — deleted as soon as it is first revealed. An explicit "reveal" step prevents link-preview bots from burning pastes, an atomic claim stops two simultaneous viewers from both reading it, and the viewer warns before you leave the page without copying or downloading the text. (Burn-after-read pastes cannot have file attachments.)
 - **Encrypted file attachments** — up to 20 files per paste, 50 MB each, 100 MB total; files-only pastes (no text) are allowed. Add files with the picker, drag-and-drop anywhere on the page, or paste from the clipboard. Files are compressed (when smaller) and encrypted client-side with the paste's content key, then uploaded straight to Vercel Blob; filenames and MIME types are stored encrypted too. The server decrypts on download.
 - **Resilient uploads** — files over 8 MB use Vercel Blob multipart uploads (8 MB parts, retried individually), so a dropped connection on a slow or mobile network retries one part instead of restarting the file. Overall progress is shown and uploads can be cancelled.
+- **Delete your own paste** — the creating browser saves a delete token in `localStorage`, so the creator sees a **Delete** button on the paste page until it expires, even after closing the tab. A "Copy delete link" (`/<code>#delete=<token>`) works from other devices. The token lives in the URL fragment, which browsers never send to the server, and only its SHA-256 hash is stored.
 - **Viewer tools** — wrap long lines, line numbers (pastes up to 5,000 lines), download text as `.txt`, copy, per-file download progress, and "Download all (.zip)" for multi-file pastes. The share button uses the native share sheet where available and falls back to copying the link.
 - **UI** — light / dark / system theme toggle, slim theme-aware scrollbars, and a no-scroll responsive layout that compacts itself on short screens and landscape phones.
 - **Rate limiting** — create + read limits via Vercel KV / Upstash Redis (per-IP, sliding window).
@@ -96,7 +97,8 @@ Open http://localhost:3000.
 1. **Create** — the client derives a content key with PBKDF2-SHA256 in the browser for password-protected pastes, or generates a random WebCrypto key when there are file attachments, and sends it (base64) with the paste; for plain text-only pastes the server generates a fresh random key. Files are uploaded **before** the paste is created: each one is compressed, encrypted, and uploaded to Vercel Blob via a client token from `/api/pastes/upload-token` (pathnames must match `files/<uuid>`; files over 8 MB use multipart). `POST /api/pastes` then validates input with Zod, compresses + encrypts the text with AES-256-GCM, wraps the key with the master key, and inserts the row under a short code (retrying on the rare code collision — no preliminary existence check). Attachment rows store the blob path, size, per-file IV/auth tag, and the filename/MIME sealed with the content key. If the request is rejected or fails, the uploaded blobs are deleted. Returns `{ code, url }`.
 2. **Read** — the user opens `/[code]`. For password-protected pastes a gate is shown; the client re-derives the key in the browser (PBKDF2 with the stored per-paste salt) and posts `{ contentKey }` to `/api/pastes/[code]/verify`. The server unwraps the stored key and compares it to the submitted one with a constant-time check (`timingSafeEqual`) — no password or KDF ever runs on the server. For all other pastes, the user clicks "View" and the client posts to `/api/pastes/[code]/reveal`. The server unwraps the key, decrypts, enforces expiry and burn-after-read, and returns the plaintext plus decrypted attachment metadata.
 3. **Burn** — for burn-after-read pastes, the server atomically flips `consumed` from `false` to `true` before responding; only the request that wins the flip gets the content, and any concurrent request gets `410 Gone`. The row is deleted after the response is sent.
-4. **Download files** — `GET /api/pastes/[code]/files/[id]` streams the encrypted blob through AES-GCM decryption (and inflate, if compressed) back to the client with the original filename. Password-protected pastes require the `X-Paste-Key` header (the client's derived key), checked with the same constant-time comparison. Downloads run at most 3 at a time; "Download all" zips the files in the browser.
+4. **Delete** — the create response includes `deleteUrl`. Opening it shows a confirmation instead of the paste (so it never burns a burn-after-read paste); confirming posts the token to `/api/pastes/[code]/delete`, which compares its hash to the stored one in constant time and deletes the paste and its blobs.
+5. **Download files** — `GET /api/pastes/[code]/files/[id]` streams the encrypted blob through AES-GCM decryption (and inflate, if compressed) back to the client with the original filename. Password-protected pastes require the `X-Paste-Key` header (the client's derived key), checked with the same constant-time comparison. Downloads run at most 3 at a time; "Download all" zips the files in the browser.
 
 ### Data model
 
@@ -108,6 +110,7 @@ pastes
   auth_tag        bytea              # GCM auth tag
   key_wrapped     bytea              # content key, encrypted with PASTE_MASTER_KEY
   salt            bytea              # PBKDF2 salt (password-protected only)
+  delete_token_hash bytea            # SHA-256 of the creator's delete token (null for older pastes)
   compression     text               # "deflate" | "none" (text compressed before encryption)
   burn_after_read boolean
   consumed        boolean            # burn-after-read: already claimed by a viewer
@@ -135,7 +138,7 @@ Both tables have row-level security enabled, and the Supabase `anon` / `authenti
 - Password attempts: 10 failures per paste per hour, counted across all IPs and across `/verify` and file downloads. Once locked, even the correct password gets `429 Too many attempts. Try again later.` (no count or `Retry-After` is revealed) until the window ends.
 - Upload quota: 300 MB of uploads per IP per UTC day. The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger.
 
-When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).
+Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so raw IPs are never sent to or stored in Redis. When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).
 
 ### Cleanup
 

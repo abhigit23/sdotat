@@ -125,6 +125,19 @@ export function decryptPasteText(
 }
 
 /**
+ * Creates a one-time delete token for a new paste. Only the hash is stored, so
+ * a database leak doesn't hand out delete links.
+ */
+export function generateDeleteToken(): { token: string; hash: Buffer } {
+  const token = randomBytes(32).toString("base64url");
+  return { token, hash: hashDeleteToken(token) };
+}
+
+export function hashDeleteToken(token: string): Buffer {
+  return createHash("sha256").update(token).digest();
+}
+
+/**
  * Generates a fresh random 256-bit content key.
  */
 export function generateContentKey(): Buffer {

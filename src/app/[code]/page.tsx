@@ -11,6 +11,8 @@ import {
 import { isValidCode } from "@/lib/ids";
 import PasswordGate from "@/components/password-gate";
 import PasteReveal from "@/components/paste-reveal";
+import DeleteGate from "@/components/delete-gate";
+import DeleteButton from "@/components/delete-button";
 
 export const dynamic = "force-dynamic";
 
@@ -85,18 +87,23 @@ export default async function PastePage({
             <ArrowLeft size={16} aria-hidden />
             New paste
           </Link>
-          <span className="font-mono text-sm text-zinc-500">/{code}</span>
+          <div className="flex items-center gap-3">
+            <DeleteButton code={code} />
+            <span className="font-mono text-sm text-zinc-500">/{code}</span>
+          </div>
         </div>
       }
     >
-      {paste.salt ? (
-        <PasswordGate
-          code={code}
-          salt={Buffer.from(paste.salt).toString("base64")}
-        />
-      ) : (
-        <PasteReveal code={code} burnAfterRead={paste.burnAfterRead} />
-      )}
+      <DeleteGate code={code}>
+        {paste.salt ? (
+          <PasswordGate
+            code={code}
+            salt={Buffer.from(paste.salt).toString("base64")}
+          />
+        ) : (
+          <PasteReveal code={code} burnAfterRead={paste.burnAfterRead} />
+        )}
+      </DeleteGate>
     </Shell>
   );
 }

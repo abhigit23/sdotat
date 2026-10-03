@@ -41,6 +41,7 @@ export type CreatePasteArgs = {
   compression: string;
   keyWrapped: Buffer;
   salt?: Buffer | null;
+  deleteTokenHash: Buffer;
   burnAfterRead: boolean;
   expiresIn: string;
 };
@@ -52,7 +53,7 @@ export function getExpiryDate(expiresIn: string): Date | null {
 
 export async function createPaste(
   args: CreatePasteArgs
-): Promise<{ code: string }> {
+): Promise<{ code: string; expiresAt: Date | null }> {
   if (!db) throw new Error("Database not configured");
   const d = db;
   const expiresAt = getExpiryDate(args.expiresIn);
@@ -67,6 +68,7 @@ export async function createPaste(
       compression: args.compression,
       keyWrapped: args.keyWrapped,
       salt: args.salt ?? null,
+      deleteTokenHash: args.deleteTokenHash,
       burnAfterRead: args.burnAfterRead,
       consumed: false,
       expiresAt,
@@ -80,7 +82,7 @@ export async function createPaste(
         .insert(schema.pastes)
         .values(row)
         .returning({ code: schema.pastes.code });
-      return rows[0];
+      return { code: rows[0].code, expiresAt };
     } catch (e) {
       if (pgErrorCode(e) !== "23505") throw e;
     }
@@ -125,6 +127,22 @@ export async function getPasteGateByCode(
     .where(eq(schema.pastes.code, code))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * The stored hash of a paste's delete token, `null` if the paste predates
+ * delete links, or `undefined` if the paste doesn't exist.
+ */
+export async function getDeleteTokenHash(
+  code: string
+): Promise<Buffer | null | undefined> {
+  if (!db) return undefined;
+  const rows = await db
+    .select({ deleteTokenHash: schema.pastes.deleteTokenHash })
+    .from(schema.pastes)
+    .where(eq(schema.pastes.code, code))
+    .limit(1);
+  return rows.length === 0 ? undefined : rows[0].deleteTokenHash;
 }
 
 /**

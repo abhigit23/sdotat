@@ -23,6 +23,7 @@ import {
 import { formatBytes, formatFileCount } from "@/lib/format";
 import { mapWithConcurrency } from "@/lib/map-concurrency";
 import { generatePassphrase, isWeakPassword } from "@/lib/passphrase";
+import { saveDeleteToken } from "@/lib/delete-tokens";
 
 const EXPIRY_OPTIONS = [
   { value: "5min", label: "5 minutes" },
@@ -39,6 +40,7 @@ const EXPIRY_OPTIONS = [
 type CreateResult = {
   code: string;
   url: string;
+  deleteUrl: string;
   expiresLabel: string;
   burn: boolean;
   passwordProtected: boolean;
@@ -364,9 +366,15 @@ export default function PasteEditor() {
         setLoading(false);
         return;
       }
+      saveDeleteToken(
+        data.code,
+        data.deleteUrl.split("#delete=")[1],
+        data.expiresAt,
+      );
       setResult({
         code: data.code,
         url: data.url,
+        deleteUrl: data.deleteUrl,
         expiresLabel:
           EXPIRY_OPTIONS.find((o) => o.value === expiresIn)?.label ?? expiresIn,
         burn: burnAfterRead,
@@ -429,7 +437,7 @@ export default function PasteEditor() {
             </li>
           )}
         </ul>
-        <div className="flex flex-col gap-1 text-center text-sm text-zinc-500 short:text-xs dark:text-zinc-400">
+        <div className="@container flex flex-col gap-1 text-center text-sm text-zinc-500 short:text-xs dark:text-zinc-400">
           {result.passwordProtected ? (
             <p>
               The password is <strong>not</strong> part of the link. Send it
@@ -441,6 +449,23 @@ export default function PasteEditor() {
           {result.burn && (
             <p>The first person to open it will delete it for everyone.</p>
           )}
+          <p className="text-xs">
+            {/* One line where it fits (360px-wide phones and up; expiry is
+                already shown in the chip above). Narrower, or with enlarged
+                text, it would wrap into a misaligned second row, so below
+                17.5rem (rem, so it tracks text size) the link stacks on its
+                own centered line instead. */}
+            Delete it later from this browser.{" "}
+            <span className="whitespace-nowrap @max-[17.5rem]:block">
+              <CopyButton
+                text={result.deleteUrl}
+                label="Copy delete link"
+                copiedLabel="Delete link copied"
+                variant="link"
+                labelClassName="@max-[17.5rem]:justify-items-center"
+              />
+            </span>
+          </p>
         </div>
         </div>
         </div>

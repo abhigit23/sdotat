@@ -38,6 +38,9 @@ export const pastes = pgTable(
     salt: bytea("salt"),
     // "deflate" when the text was compressed before encryption.
     compression: text("compression").notNull().default("none"),
+    // SHA-256 of the creator's one-time delete token. Null for pastes created
+    // before delete links existed.
+    deleteTokenHash: bytea("delete_token_hash"),
     burnAfterRead: boolean("burn_after_read").default(false).notNull(),
     consumed: boolean("consumed").default(false).notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }),

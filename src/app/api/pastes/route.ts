@@ -4,6 +4,7 @@ import { createPasteSchema, MAX_PASTE_TOTAL_BYTES } from "@/lib/validation";
 import {
   encryptPasteText,
   generateContentKey,
+  generateDeleteToken,
   sealAttachmentMeta,
   wrapKey,
 } from "@/lib/crypto";
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
   );
 
   const keyWrapped = wrapKey(contentKey);
+  const deleteToken = generateDeleteToken();
 
   let paste;
   try {
@@ -128,6 +130,7 @@ export async function POST(req: NextRequest) {
       compression,
       keyWrapped,
       salt,
+      deleteTokenHash: deleteToken.hash,
       burnAfterRead: input.burnAfterRead,
       expiresIn: input.expiresIn,
     });
@@ -174,8 +177,15 @@ export async function POST(req: NextRequest) {
   }
 
   const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  // The delete token goes in the URL fragment, which browsers never send to
+  // the server, so it stays out of request logs and referrers.
   return NextResponse.json(
-    { code: paste.code, url: `${base}/${paste.code}` },
+    {
+      code: paste.code,
+      url: `${base}/${paste.code}`,
+      deleteUrl: `${base}/${paste.code}#delete=${deleteToken.token}`,
+      expiresAt: paste.expiresAt?.toISOString() ?? null,
+    },
     { status: 201 }
   );
 }
