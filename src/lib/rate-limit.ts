@@ -1,6 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { NextRequest } from "next/server";
+import { createHash, createHmac } from "node:crypto";
 
 const UPS_ENABLED =
   !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
@@ -48,16 +49,26 @@ function getReadLimiter(): Ratelimit | null {
   return readLimiter;
 }
 
+let ipHashKey: Buffer | null = null;
+
 /**
- * Resolves a stable identifier from an incoming request (client IP). Falls
- * back to a constant when headers are unavailable (unlikely in practice).
+ * Resolves a stable identifier from an incoming request: an HMAC of the client
+ * IP, so raw IPs are never sent to or stored in Redis. Keyed by a value derived
+ * from the master key, so the hashes can't be reversed by hashing every IP.
+ * Falls back to a constant when headers are unavailable (unlikely in practice).
  */
-export function getIp(req: NextRequest): string {
-  return (
+export function clientId(req: NextRequest): string {
+  const ip =
     req.headers.get("x-real-ip") ??
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
+    "unknown";
+  ipHashKey ??= createHash("sha256")
+    .update(`ip-hash:${process.env.PASTE_MASTER_KEY ?? ""}`)
+    .digest();
+  return createHmac("sha256", ipHashKey)
+    .update(ip)
+    .digest("base64url")
+    .slice(0, 22);
 }
 
 export type RateLimitResult = {
@@ -77,7 +88,7 @@ export async function checkCreateLimit(
 ): Promise<{ result: RateLimitResult; active: boolean }> {
   const limiter = getCreateLimiter();
   if (!limiter) return { result: ALLOW, active: false };
-  const { success, limit, remaining } = await limiter.limit(getIp(req));
+  const { success, limit, remaining } = await limiter.limit(clientId(req));
   return { result: { success, limit, remaining }, active: true };
 }
 
@@ -89,7 +100,7 @@ export async function checkReadLimit(
 ): Promise<{ result: RateLimitResult; active: boolean }> {
   const limiter = getReadLimiter();
   if (!limiter) return { result: ALLOW, active: false };
-  const { success, limit, remaining } = await limiter.limit(getIp(req));
+  const { success, limit, remaining } = await limiter.limit(clientId(req));
   return { result: { success, limit, remaining }, active: true };
 }
 
@@ -116,7 +127,7 @@ export async function checkUploadLimit(
 ): Promise<{ result: RateLimitResult; active: boolean }> {
   const limiter = getUploadLimiter();
   if (!limiter) return { result: ALLOW, active: false };
-  const { success, limit, remaining } = await limiter.limit(getIp(req));
+  const { success, limit, remaining } = await limiter.limit(clientId(req));
   return { result: { success, limit, remaining }, active: true };
 }
 
@@ -170,7 +181,7 @@ export async function reserveUploadBytes(
   const r = getRedis();
   if (!r) return true;
   const day = new Date().toISOString().slice(0, 10);
-  const key = `uq:${getIp(req)}:${day}`;
+  const key = `uq:${clientId(req)}:${day}`;
   const total = await r.incrby(key, bytes);
   if (total === bytes) await r.expire(key, 2 * 24 * 60 * 60);
   if (total > DAILY_UPLOAD_QUOTA_BYTES) {
