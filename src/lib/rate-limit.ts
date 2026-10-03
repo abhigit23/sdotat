@@ -120,6 +120,40 @@ export async function checkUploadLimit(
   return { result: { success, limit, remaining }, active: true };
 }
 
+/**
+ * Failed password attempts allowed per paste, from any IP, before it locks for
+ * the rest of the window. Bounds online guessing even when an attacker spreads
+ * guesses across many IPs.
+ */
+const MAX_PASSWORD_FAILURES = 10;
+const PASSWORD_WINDOW_SECONDS = 60 * 60;
+
+/** Shown when a paste is locked; deliberately gives no count or timing. */
+export const PASSWORD_LOCKED_MESSAGE = "Too many attempts. Try again later.";
+
+/**
+ * True if the paste has had too many failed password attempts in the current
+ * window. Always false when Redis isn't configured.
+ */
+export async function isPasswordLocked(code: string): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return false;
+  const failures = await r.get<number>(`pw:${code}`);
+  return (failures ?? 0) >= MAX_PASSWORD_FAILURES;
+}
+
+/**
+ * Counts a failed password attempt against the paste. The window starts at
+ * the first failure.
+ */
+export async function recordPasswordFailure(code: string): Promise<void> {
+  const r = getRedis();
+  if (!r) return;
+  const key = `pw:${code}`;
+  const failures = await r.incr(key);
+  if (failures === 1) await r.expire(key, PASSWORD_WINDOW_SECONDS);
+}
+
 /** Bytes one IP may reserve for uploads per UTC day. */
 export const DAILY_UPLOAD_QUOTA_BYTES = 300 * 1024 * 1024;
 

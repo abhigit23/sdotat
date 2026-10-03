@@ -11,7 +11,12 @@ import {
 } from "@/lib/paste-service";
 import { unwrapKey, openAttachmentMeta } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
-import { checkReadLimit } from "@/lib/rate-limit";
+import {
+  checkReadLimit,
+  isPasswordLocked,
+  recordPasswordFailure,
+  PASSWORD_LOCKED_MESSAGE,
+} from "@/lib/rate-limit";
 import { ATTACHMENT_ID } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -92,11 +97,19 @@ export async function GET(
       if (!providedRaw) {
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
+      // Same per-paste lock as /verify, or guesses could be made here instead.
+      if (await isPasswordLocked(code)) {
+        return NextResponse.json(
+          { error: PASSWORD_LOCKED_MESSAGE },
+          { status: 429 }
+        );
+      }
       const provided = Buffer.from(providedRaw, "base64");
       if (
         contentKey.length !== provided.length ||
         !timingSafeEqual(contentKey, provided)
       ) {
+        await recordPasswordFailure(code);
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
     }

@@ -6,7 +6,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 
 - **Short URLs** — auto-generated 6-character base62 codes. Open a paste from its link, or type a code / paste a link into the "Open" box on the home page.
 - **Server-side encryption** — AES-256-GCM. Each paste gets a random 256-bit key that is wrapped ("encrypted at rest") with a `PASTE_MASTER_KEY` before being stored, so a raw DB dump is not plaintext-readable. Text is deflate-compressed before encryption when that makes it smaller.
-- **Optional password protection** — content key derived in the browser with PBKDF2-SHA256 (210,000 iterations, per-paste random salt). The server never receives or derives the password — only the derived key. A "generate" button creates a random, easy-to-read password (`k7Qm-Xe3P-vN9c-Tr4W`, ~93 bits).
+- **Optional password protection** — content key derived in the browser with PBKDF2-SHA256 (210,000 iterations, per-paste random salt). The server never receives or derives the password — only the derived key. A "generate" button creates a random, easy-to-read password (`k7Qm-Xe3P-vN9c-Tr4W`, ~93 bits), and the editor warns about weak ones. Failed attempts are limited per paste (see Rate limiting).
 - **Expiration** — 5 min, 10 min, 30 min, 1 h, 3 h, 6 h, 12 h, 1 d, 3 d. The viewer shows a live "Expires in …" countdown.
 - **Burn after reading** — deleted as soon as it is first revealed. An explicit "reveal" step prevents link-preview bots from burning pastes, an atomic claim stops two simultaneous viewers from both reading it, and the viewer warns before you leave the page without copying or downloading the text. (Burn-after-read pastes cannot have file attachments.)
 - **Encrypted file attachments** — up to 20 files per paste, 50 MB each, 100 MB total; files-only pastes (no text) are allowed. Add files with the picker, drag-and-drop anywhere on the page, or paste from the clipboard. Files are compressed (when smaller) and encrypted client-side with the paste's content key, then uploaded straight to Vercel Blob; filenames and MIME types are stored encrypted too. The server decrypts on download.
@@ -132,6 +132,7 @@ Both tables have row-level security enabled, and the Supabase `anon` / `authenti
 - Create paste: 20 / 10 s per IP
 - Upload tokens (one per file): 30 / 10 min per IP
 - Read (reveal, verify, file downloads): 60 / 60 s per IP
+- Password attempts: 10 failures per paste per hour, counted across all IPs and across `/verify` and file downloads. Once locked, even the correct password gets `429 Too many attempts. Try again later.` (no count or `Retry-After` is revealed) until the window ends.
 - Upload quota: 300 MB of uploads per IP per UTC day. The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger.
 
 When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).

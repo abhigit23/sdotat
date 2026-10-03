@@ -15,7 +15,12 @@ import {
   openAttachmentMeta,
 } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
-import { checkReadLimit } from "@/lib/rate-limit";
+import {
+  checkReadLimit,
+  isPasswordLocked,
+  recordPasswordFailure,
+  PASSWORD_LOCKED_MESSAGE,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -74,6 +79,12 @@ export async function POST(
     );
   }
 
+  // Checked before comparing, so a locked paste rejects even the right
+  // password until the window ends.
+  if (await isPasswordLocked(code)) {
+    return NextResponse.json({ error: PASSWORD_LOCKED_MESSAGE }, { status: 429 });
+  }
+
   const provided = Buffer.from(parsed.data.contentKey, "base64");
   let contentKey: Buffer;
   try {
@@ -85,6 +96,7 @@ export async function POST(
     contentKey.length !== provided.length ||
     !timingSafeEqual(contentKey, provided)
   ) {
+    await recordPasswordFailure(code);
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 

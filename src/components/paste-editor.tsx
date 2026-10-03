@@ -22,7 +22,7 @@ import {
 } from "@/lib/validation";
 import { formatBytes, formatFileCount } from "@/lib/format";
 import { mapWithConcurrency } from "@/lib/map-concurrency";
-import { generatePassphrase } from "@/lib/passphrase";
+import { generatePassphrase, isWeakPassword } from "@/lib/passphrase";
 
 const EXPIRY_OPTIONS = [
   { value: "5min", label: "5 minutes" },
@@ -105,6 +105,11 @@ export default function PasteEditor() {
   const trimmedPassword = password.trim();
   const passwordTooShort =
     trimmedPassword.length > 0 && trimmedPassword.length < MIN_PASSWORD_LENGTH;
+  // A warning only: long enough to submit, but easy to guess.
+  const passwordWeak =
+    !passwordTooShort &&
+    trimmedPassword.length > 0 &&
+    isWeakPassword(trimmedPassword);
 
   const hasInput = content.trim().length > 0 || files.length > 0;
   const canSubmit = !loading && hasInput && !overLimit && !passwordTooShort;
@@ -630,14 +635,16 @@ export default function PasteEditor() {
             <span
               id="password-hint"
               className={`text-xs ${
-                passwordTooShort
+                passwordTooShort || passwordWeak
                   ? "text-amber-600 dark:text-amber-400"
                   : "text-zinc-500 short:hidden dark:text-zinc-400"
               }`}
             >
               {passwordTooShort
                 ? `Use at least ${MIN_PASSWORD_LENGTH} characters.`
-                : "Optional. You share it separately from the link."}
+                : passwordWeak
+                  ? "Weak password. Try Generate."
+                  : "Optional. You share it separately from the link."}
             </span>
           </div>
 
