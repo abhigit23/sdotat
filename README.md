@@ -129,10 +129,12 @@ Both tables have row-level security enabled, and the Supabase `anon` / `authenti
 
 ### Rate limiting
 
-- Create (paste + upload tokens): 20 / 10 s per IP
+- Create paste: 20 / 10 s per IP
+- Upload tokens (one per file): 30 / 10 min per IP
 - Read (reveal, verify, file downloads): 60 / 60 s per IP
+- Upload quota: 300 MB of uploads per IP per UTC day. The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger.
 
-When KV env vars are absent, rate limiting is disabled (fine for local dev).
+When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).
 
 ### Cleanup
 

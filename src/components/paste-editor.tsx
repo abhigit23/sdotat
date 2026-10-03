@@ -318,6 +318,8 @@ export default function PasteEditor() {
               access: "private",
               contentType: "application/octet-stream",
               handleUploadUrl: "/api/pastes/upload-token",
+              // Counted against the daily upload quota and enforced by Blob.
+              clientPayload: JSON.stringify({ size: bytes.byteLength }),
               multipart: bytes.byteLength > MULTIPART_THRESHOLD_BYTES,
               abortSignal: controller.signal,
               onUploadProgress: ({ percentage }) => report(i, percentage),
@@ -371,11 +373,17 @@ export default function PasteEditor() {
       setBurnAfterRead(false);
       setExpiresIn("1h");
       setFiles([]);
-    } catch {
+    } catch (e) {
+      // The Blob SDK hides the token route's error (rate limit, daily quota)
+      // behind this message, so explain the likely cause instead.
+      const refused =
+        e instanceof Error && e.message.includes("retrieve the client token");
       setError(
         abortRef.current?.signal.aborted
           ? "Upload cancelled. Nothing was saved."
-          : "Network error",
+          : refused
+            ? "Upload refused: you've hit the upload limit. Try again later or attach fewer files."
+            : "Network error",
       );
     }
     abortRef.current = null;

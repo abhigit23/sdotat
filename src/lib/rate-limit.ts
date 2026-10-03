@@ -13,6 +13,14 @@ if (!UPS_ENABLED && process.env.NODE_ENV === "production") {
 
 let createLimiter: Ratelimit | null = null;
 let readLimiter: Ratelimit | null = null;
+let uploadLimiter: Ratelimit | null = null;
+let redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (!UPS_ENABLED) return null;
+  if (!redis) redis = Redis.fromEnv();
+  return redis;
+}
 
 function getCreateLimiter(): Ratelimit | null {
   if (!UPS_ENABLED) return null;
@@ -83,4 +91,57 @@ export async function checkReadLimit(
   if (!limiter) return { result: ALLOW, active: false };
   const { success, limit, remaining } = await limiter.limit(getIp(req));
   return { result: { success, limit, remaining }, active: true };
+}
+
+function getUploadLimiter(): Ratelimit | null {
+  const r = getRedis();
+  if (!r) return null;
+  if (!uploadLimiter) {
+    // One token per file: a full paste (20 files) fits, scripted floods don't.
+    uploadLimiter = new Ratelimit({
+      redis: r,
+      limiter: Ratelimit.slidingWindow(30, "10 m"),
+      prefix: "rl:upload",
+      analytics: false,
+    });
+  }
+  return uploadLimiter;
+}
+
+/**
+ * Enforces the upload-token rate limit (one token per uploaded file).
+ */
+export async function checkUploadLimit(
+  req: NextRequest
+): Promise<{ result: RateLimitResult; active: boolean }> {
+  const limiter = getUploadLimiter();
+  if (!limiter) return { result: ALLOW, active: false };
+  const { success, limit, remaining } = await limiter.limit(getIp(req));
+  return { result: { success, limit, remaining }, active: true };
+}
+
+/** Bytes one IP may reserve for uploads per UTC day. */
+export const DAILY_UPLOAD_QUOTA_BYTES = 300 * 1024 * 1024;
+
+/**
+ * Reserves `bytes` against the IP's daily upload quota. Returns false (and
+ * reserves nothing) if that would exceed the quota. Bytes stay counted even if
+ * the upload later fails, which errs on the side of the store. Always allows
+ * when Redis isn't configured.
+ */
+export async function reserveUploadBytes(
+  req: NextRequest,
+  bytes: number
+): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return true;
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `uq:${getIp(req)}:${day}`;
+  const total = await r.incrby(key, bytes);
+  if (total === bytes) await r.expire(key, 2 * 24 * 60 * 60);
+  if (total > DAILY_UPLOAD_QUOTA_BYTES) {
+    await r.decrby(key, bytes);
+    return false;
+  }
+  return true;
 }
