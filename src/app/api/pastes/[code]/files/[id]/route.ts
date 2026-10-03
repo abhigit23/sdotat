@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { get } from "@vercel/blob";
-import { Readable } from "node:stream";
+import { Readable, Transform, pipeline } from "node:stream";
 import { createDecipheriv, timingSafeEqual } from "node:crypto";
 import { createInflate } from "node:zlib";
 import {
@@ -30,6 +30,25 @@ function contentDisposition(name: string): string {
     (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
   );
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
+/**
+ * Fails the stream once more than `max` bytes pass through. zlib's
+ * `maxOutputLength` only applies to the one-shot functions, so this bounds a
+ * crafted deflate stream (decompression bomb) to the recorded file size.
+ */
+function limitBytes(max: number): Transform {
+  let seen = 0;
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      seen += chunk.length;
+      if (seen > max) {
+        callback(new Error("Attachment exceeds its recorded size"));
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
 }
 
 export async function GET(
@@ -99,13 +118,17 @@ export async function GET(
   decipher.setAuthTag(Buffer.from(attachment.authTag));
 
   try {
-    const decrypted = Readable.fromWeb(
+    // pipeline (unlike .pipe) destroys every stage on error, so a failed
+    // auth tag or an oversized file aborts the response instead of hanging.
+    const source = Readable.fromWeb(
       blobStream as Parameters<typeof Readable.fromWeb>[0]
-    ).pipe(decipher);
+    );
+    const limit = limitBytes(attachment.size);
+    const onDone = () => {};
     const plain =
       attachment.compression === "deflate"
-        ? decrypted.pipe(createInflate())
-        : decrypted;
+        ? pipeline(source, decipher, createInflate(), limit, onDone)
+        : pipeline(source, decipher, limit, onDone);
 
     if (row.burnAfterRead) {
       // Burn-after-read pastes cannot have attachments, but if this ever

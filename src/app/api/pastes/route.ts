@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
-import { createPasteSchema } from "@/lib/validation";
+import { createPasteSchema, MAX_PASTE_TOTAL_BYTES } from "@/lib/validation";
 import {
   encryptPasteText,
   generateContentKey,
@@ -18,6 +18,41 @@ import {
 import { checkCreateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+/**
+ * Checks the client's file entries against the blobs actually stored. The
+ * client reports sizes itself, so without this it could under-report them and
+ * attach far more than the per-paste limit. Returns an error, or null if OK.
+ */
+async function checkUploadedSizes(
+  files: Array<{ pathname: string; size: number; compression: string }>
+): Promise<{ message: string; status: number } | null> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return { message: "File attachments are not configured", status: 500 };
+  }
+  // Imported lazily to keep this route's bundle small (see deleteBlobs).
+  const { head } = await import("@vercel/blob");
+  const blobs = await Promise.all(
+    files.map((f) => head(f.pathname).catch(() => null))
+  );
+  if (blobs.some((b) => b === null)) {
+    return { message: "Uploaded file not found", status: 400 };
+  }
+  const stored = blobs.reduce((sum, b) => sum + (b?.size ?? 0), 0);
+  if (stored > MAX_PASTE_TOTAL_BYTES) {
+    return { message: "Total file size exceeds the 100 MB per-paste limit", status: 400 };
+  }
+  // AES-GCM ciphertext is exactly as long as its plaintext (the auth tag is
+  // stored separately), so an uncompressed file's size must match its blob.
+  // Deflated sizes can't be checked here; downloads cap their output instead.
+  const mismatch = files.some(
+    (f, i) => f.compression === "none" && f.size !== blobs[i]?.size
+  );
+  if (mismatch) {
+    return { message: "File size does not match the uploaded file", status: 400 };
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   const { result, active } = await checkCreateLimit(req);
@@ -55,6 +90,14 @@ export async function POST(req: NextRequest) {
       { error: "Burn-after-read pastes cannot have file attachments" },
       { status: 400 }
     );
+  }
+
+  if (files.length > 0) {
+    const sizeError = await checkUploadedSizes(files);
+    if (sizeError) {
+      await discardUploads();
+      return NextResponse.json({ error: sizeError.message }, { status: sizeError.status });
+    }
   }
 
   let contentKey: Buffer;
