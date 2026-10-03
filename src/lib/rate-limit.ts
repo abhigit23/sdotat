@@ -190,3 +190,46 @@ export async function reserveUploadBytes(
   }
   return true;
 }
+
+/**
+ * How long a declared upload size is kept: comfortably longer than an upload
+ * token stays valid (1 h), so a slow upload's size is still there at create.
+ */
+const UPLOAD_SIZE_TTL_SECONDS = 3 * 60 * 60;
+
+/**
+ * Records the size a client declared for an upload token. Blob rejects any
+ * upload larger than this, so it's a trusted upper bound on the stored blob,
+ * and lets paste creation skip a slow Blob lookup per file. `pathname` is the
+ * token's pathname (`files/<uuid>`), which is also where the blob is stored.
+ *
+ * Each pathname can be claimed once (returns false if already taken): a second
+ * token for the same pathname could otherwise overwrite the size recorded for
+ * a larger blob already uploaded under it. Clients use a fresh UUID per file,
+ * so this never affects real uploads. Always succeeds without Redis.
+ */
+export async function claimUploadSize(
+  pathname: string,
+  bytes: number
+): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return true;
+  const res = await r.set(`upsz:${pathname}`, bytes, {
+    nx: true,
+    ex: UPLOAD_SIZE_TTL_SECONDS,
+  });
+  return res === "OK";
+}
+
+/**
+ * Declared sizes for the given token pathnames, in one Redis round trip;
+ * null entries were never recorded or have expired. Returns null when Redis
+ * isn't configured.
+ */
+export async function getUploadSizes(
+  pathnames: string[]
+): Promise<(number | null)[] | null> {
+  const r = getRedis();
+  if (!r || pathnames.length === 0) return r ? [] : null;
+  return r.mget<(number | null)[]>(...pathnames.map((p) => `upsz:${p}`));
+}

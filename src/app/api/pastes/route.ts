@@ -16,14 +16,27 @@ import {
   describeDbError,
   pgErrorCode,
 } from "@/lib/paste-service";
-import { checkCreateLimit } from "@/lib/rate-limit";
+import { checkCreateLimit, getUploadSizes } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 /**
- * Checks the client's file entries against the blobs actually stored. The
+ * The pathname a blob's token was issued for: `files/<uuid>`. Blobs are now
+ * stored at exactly that path; older ones also carry a `-<suffix>`.
+ */
+function tokenPathname(blobPathname: string): string {
+  return blobPathname.slice(0, "files/".length + 36);
+}
+
+/**
+ * Checks the client's file entries against the sizes actually stored. The
  * client reports sizes itself, so without this it could under-report them and
  * attach far more than the per-paste limit. Returns an error, or null if OK.
+ *
+ * Sizes come from the upload-token route's records (one Redis round trip):
+ * each is the exact size declared for that upload, and Blob rejects anything
+ * larger, so it bounds the stored blob. Files without a record (no Redis, or
+ * it expired) fall back to asking Blob, which takes ~0.75 s per lookup.
  */
 async function checkUploadedSizes(
   files: Array<{ pathname: string; size: number; compression: string }>
@@ -31,15 +44,24 @@ async function checkUploadedSizes(
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return { message: "File attachments are not configured", status: 500 };
   }
-  // Imported lazily to keep this route's bundle small (see deleteBlobs).
-  const { head } = await import("@vercel/blob");
-  const blobs = await Promise.all(
-    files.map((f) => head(f.pathname).catch(() => null))
-  );
-  if (blobs.some((b) => b === null)) {
+  const recorded =
+    (await getUploadSizes(files.map((f) => tokenPathname(f.pathname)))) ??
+    files.map(() => null);
+  const missing = files.filter((_, i) => recorded[i] === null);
+  let looked: (number | null)[] = [];
+  if (missing.length > 0) {
+    // Imported lazily to keep this route's bundle small (see deleteBlobs).
+    const { head } = await import("@vercel/blob");
+    looked = await Promise.all(
+      missing.map((f) => head(f.pathname).then((b) => b.size, () => null))
+    );
+  }
+  let next = 0;
+  const sizes = recorded.map((s) => s ?? looked[next++]);
+  if (sizes.some((s) => s === null || s === undefined)) {
     return { message: "Uploaded file not found", status: 400 };
   }
-  const stored = blobs.reduce((sum, b) => sum + (b?.size ?? 0), 0);
+  const stored = sizes.reduce<number>((sum, s) => sum + (s ?? 0), 0);
   if (stored > MAX_PASTE_TOTAL_BYTES) {
     return { message: "Total file size exceeds the 100 MB per-paste limit", status: 400 };
   }
@@ -47,7 +69,7 @@ async function checkUploadedSizes(
   // stored separately), so an uncompressed file's size must match its blob.
   // Deflated sizes can't be checked here; downloads cap their output instead.
   const mismatch = files.some(
-    (f, i) => f.compression === "none" && f.size !== blobs[i]?.size
+    (f, i) => f.compression === "none" && f.size !== sizes[i]
   );
   if (mismatch) {
     return { message: "File size does not match the uploaded file", status: 400 };

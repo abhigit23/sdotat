@@ -136,7 +136,8 @@ Both tables have row-level security enabled, and the Supabase `anon` / `authenti
 - Upload tokens (one per file): 30 / 10 min per IP
 - Read (reveal, verify, file downloads): 60 / 60 s per IP
 - Password attempts: 10 failures per paste per hour, counted across all IPs and across `/verify` and file downloads. Once locked, even the correct password gets `429 Too many attempts. Try again later.` (no count or `Retry-After` is revealed) until the window ends.
-- Upload quota: 300 MB of uploads per IP per UTC day. The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger.
+- Upload quota: 300 MB of uploads per IP per UTC day. The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger. Each token stores one blob at exactly `files/<uuid>` (no random suffix, no overwrite), so a token can't be reused to upload again on a single quota charge.
+- Per-paste file size check: the declared size is also recorded in Redis per upload path (3 h, one token per path), so `POST /api/pastes` checks the real 100 MB total with one Redis lookup. Files without a record (no Redis, or expired) fall back to a Blob `head()` per file.
 
 Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so raw IPs are never sent to or stored in Redis. When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).
 

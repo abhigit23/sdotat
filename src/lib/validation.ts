@@ -33,7 +33,10 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 /** Pathname the client requests an upload token for: `files/<uuid>`. */
 export const UPLOAD_PATHNAME = new RegExp(`^files/${UUID}$`);
 
-/** Stored blob pathname: the upload pathname plus Blob's random suffix. */
+/**
+ * Stored blob pathname: the upload pathname. The optional `-<suffix>` covers
+ * blobs uploaded before tokens stopped adding Blob's random suffix.
+ */
 const BLOB_PATHNAME = new RegExp(`^files/${UUID}(-[A-Za-z0-9]+)?$`);
 
 export const ATTACHMENT_ID = new RegExp(`^${UUID}$`);

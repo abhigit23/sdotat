@@ -119,7 +119,9 @@ export async function GET(
 
   const blob = await get(attachment.blobPath, { access: "private" });
   if (!blob || !blob.stream) {
-    return NextResponse.json({ error: "File unavailable" }, { status: 500 });
+    // Missing from the store (e.g. the creator never finished uploading it):
+    // not a server fault, so not a 500.
+    return NextResponse.json({ error: "File unavailable" }, { status: 404 });
   }
   const blobStream: ReadableStream = blob.stream;
 
