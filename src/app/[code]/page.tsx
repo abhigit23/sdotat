@@ -82,14 +82,14 @@ export default async function PastePage({
         <div className="mb-3 flex h-9 shrink-0 items-center justify-between pr-12 short:mb-1 short:mt-2 tiny:mb-0 tiny:mt-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
             <ArrowLeft size={16} aria-hidden />
             New paste
           </Link>
           <div className="flex items-center gap-3">
             <DeleteButton code={code} />
-            <span className="font-mono text-sm text-zinc-500">/{code}</span>
+            <span className="font-mono text-sm text-zinc-500 dark:text-zinc-400">/{code}</span>
           </div>
         </div>
       }

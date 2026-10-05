@@ -56,7 +56,7 @@ export default function PasswordInput({
         aria-label={placeholder}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
-        className={`w-full rounded-md border bg-white px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-900 ${
+        className={`w-full rounded-md border bg-white px-3 py-2 pr-10 text-sm placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-zinc-900 dark:placeholder:text-zinc-400 ${
           invalid
             ? "border-amber-500 dark:border-amber-400"
             : "border-zinc-300 dark:border-zinc-700"

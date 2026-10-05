@@ -99,7 +99,7 @@ export default function PasswordGate({ code, salt }: Props) {
         />
       </fieldset>
       {view.status === "error" && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {view.message}
         </p>
       )}

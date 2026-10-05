@@ -510,15 +510,15 @@ export default function PasteEditor() {
           onChange={(e) => setContent(e.target.value)}
           placeholder="Paste or type your text here..."
           aria-invalid={overLimit || undefined}
-          className="min-h-20 tiny:min-h-12 w-full flex-1 resize-none rounded-xl border border-zinc-300 bg-white p-4 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 short:p-3 dark:border-zinc-700 dark:bg-zinc-900"
+          className="min-h-20 tiny:min-h-12 w-full flex-1 resize-none rounded-xl border border-zinc-300 bg-white p-4 font-mono text-sm leading-relaxed placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 short:p-3 dark:border-zinc-700 dark:bg-zinc-900 dark:placeholder:text-zinc-400"
         />
         {showCounter && (
           <p
             className={`shrink-0 text-right text-xs tabular-nums ${
               overLimit
-                ? "font-medium text-red-600"
+                ? "font-medium text-red-600 dark:text-red-400"
                 : nearLimit
-                  ? "text-amber-600 dark:text-amber-400"
+                  ? "text-amber-700 dark:text-amber-400"
                   : "text-zinc-500 dark:text-zinc-400"
             }`}
           >
@@ -591,7 +591,7 @@ export default function PasteEditor() {
                     <button
                       type="button"
                       onClick={() => removeFile(i)}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-zinc-500 transition hover:text-red-500 dark:text-zinc-400"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-zinc-500 transition hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400"
                       aria-label={`Remove ${f.name}`}
                     >
                       <X size={14} />
@@ -661,7 +661,7 @@ export default function PasteEditor() {
               id="password-hint"
               className={`text-xs ${
                 passwordTooShort || passwordWeak
-                  ? "text-amber-600 dark:text-amber-400"
+                  ? "text-amber-700 dark:text-amber-400"
                   : "text-zinc-500 short:hidden dark:text-zinc-400"
               }`}
             >
@@ -689,7 +689,7 @@ export default function PasteEditor() {
                 Deleted after first opening. Can&apos;t be used with attachments.
               </span>
               {files.length > 0 && (
-                <span className="text-xs text-amber-600 short:hidden dark:text-amber-400">
+                <span className="text-xs text-amber-700 short:hidden dark:text-amber-400">
                   Remove attachments to use this.
                 </span>
               )}
@@ -698,7 +698,7 @@ export default function PasteEditor() {
         </div>
 
         {error && (
-          <p role="alert" className="shrink-0 text-sm text-red-600">
+          <p role="alert" className="shrink-0 text-sm text-red-600 dark:text-red-400">
             {error}
           </p>
         )}
@@ -735,7 +735,7 @@ export default function PasteEditor() {
             <button
               type="button"
               onClick={cancelUpload}
-              className="text-xs font-medium text-red-600 hover:underline"
+              className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
             >
               Cancel
             </button>

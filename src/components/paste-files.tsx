@@ -197,7 +197,7 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
         )}
       </div>
       {error && (
-        <p role="alert" className="mb-2 text-sm text-red-600">
+        <p role="alert" className="mb-2 text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}

@@ -106,7 +106,7 @@ export default function DeleteGate({ code, children }: Props) {
             everyone. It can&apos;t be undone.
           </p>
           {state.status === "error" && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               {state.message}
             </p>
           )}

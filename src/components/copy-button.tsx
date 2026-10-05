@@ -60,7 +60,7 @@ export default function CopyButton({
         !isLink
           ? ""
           : copied
-            ? "text-emerald-600 dark:text-emerald-400"
+            ? "text-emerald-700 dark:text-emerald-400"
             : "text-blue-600 hover:underline dark:text-blue-400"
       }`}
     >
