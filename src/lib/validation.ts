@@ -31,19 +31,16 @@ const SAFE_FILENAME = /^[^/\\\0]+$/;
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-/** Pathname the client requests an upload token for: `files/<uuid>`. */
-export const UPLOAD_PATHNAME = new RegExp(`^files/${UUID}$`);
-
 /**
- * Stored blob pathname: the upload pathname. The optional `-<suffix>` covers
- * blobs uploaded before tokens stopped adding Blob's random suffix.
+ * Pathname of an uploaded file: `files/<uuid>`. The client requests its upload
+ * token for this path and the blob is stored at exactly it (no random suffix).
  */
-const BLOB_PATHNAME = new RegExp(`^files/${UUID}(-[A-Za-z0-9]+)?$`);
+export const UPLOAD_PATHNAME = new RegExp(`^files/${UUID}$`);
 
 export const ATTACHMENT_ID = new RegExp(`^${UUID}$`);
 
 const fileEntrySchema = z.object({
-  pathname: z.string().regex(BLOB_PATHNAME, "invalid file path"),
+  pathname: z.string().regex(UPLOAD_PATHNAME, "invalid file path"),
   filename: z
     .string()
     .min(1)

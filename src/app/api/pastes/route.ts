@@ -21,14 +21,6 @@ import { checkCreateLimit, getUploadSizes } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 
 /**
- * The pathname a blob's token was issued for: `files/<uuid>`. Blobs are now
- * stored at exactly that path; older ones also carry a `-<suffix>`.
- */
-function tokenPathname(blobPathname: string): string {
-  return blobPathname.slice(0, "files/".length + 36);
-}
-
-/**
  * Checks the client's file entries against the sizes actually stored. The
  * client reports sizes itself, so without this it could under-report them and
  * attach far more than the per-paste limit. Returns an error, or null if OK.
@@ -45,7 +37,7 @@ async function checkUploadedSizes(
     return { message: "File attachments are not configured", status: 500 };
   }
   const recorded =
-    (await getUploadSizes(files.map((f) => tokenPathname(f.pathname)))) ??
+    (await getUploadSizes(files.map((f) => f.pathname))) ??
     files.map(() => null);
   const missing = files.filter((_, i) => recorded[i] === null);
   let looked: (number | null)[] = [];
