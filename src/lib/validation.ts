@@ -5,6 +5,7 @@ import {
   MAX_FILES_PER_PASTE,
   MAX_PASTE_TOTAL_BYTES,
 } from "./limits";
+import { EXPIRY_VALUES } from "./expiry";
 
 // Server-only: the browser imports limits from ./limits so Zod stays out of
 // the client bundle.
@@ -14,18 +15,6 @@ export {
   MAX_FILES_PER_PASTE,
   MAX_PASTE_TOTAL_BYTES,
 };
-
-export const EXPIRY_OPTIONS = [
-  "5min",
-  "10min",
-  "30min",
-  "1h",
-  "3h",
-  "6h",
-  "12h",
-  "1d",
-  "3d",
-] as const;
 
 const SAFE_FILENAME = /^[^/\\\0]+$/;
 
@@ -62,7 +51,7 @@ export const createPasteSchema = z.object({
     .optional()
     .default(""),
   burnAfterRead: z.boolean().optional().default(false),
-  expiresIn: z.enum(EXPIRY_OPTIONS).optional().default("1h"),
+  expiresIn: z.enum(EXPIRY_VALUES).optional().default("1h"),
   // Base64 of the 32-byte content key, sent for password-protected pastes and
   // for pastes with file attachments so the server wraps/reuses the key the
   // client generated.
