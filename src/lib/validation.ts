@@ -26,7 +26,6 @@ export const EXPIRY_OPTIONS = [
   "1d",
   "3d",
 ] as const;
-export type ExpiryOption = (typeof EXPIRY_OPTIONS)[number];
 
 const SAFE_FILENAME = /^[^/\\\0]+$/;
 
@@ -97,20 +96,3 @@ export const createPasteSchema = z.object({
     message: "Add some text or attach at least one file",
     path: ["content"],
   });
-
-export type CreatePasteInput = z.infer<typeof createPasteSchema>;
-
-export function htmlToText(html: string): string {
-  // Basic HTML-to-text for pasted rich content; never trust raw HTML at render.
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .trim();
-}

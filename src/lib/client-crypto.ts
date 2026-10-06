@@ -3,12 +3,12 @@
  * before they are uploaded to Vercel Blob directly from the client.
  *
  * Constants match the server-side crypto in `src/lib/crypto.ts` (AES-256-GCM,
- * 12-byte IV, 16-byte auth tag, PBKDF2-SHA256) so the server can decrypt with
- * the same key on download. Key coordination:
- *  - Password pastes: the client derives the key via PBKDF2 (matching the
- *    server) with a client-generated salt and sends the salt to the server so
- *    it derives the identical key for text, stores it wrapped, and can
- *    re-derive it to decrypt attachments when the password is supplied.
+ * 12-byte IV, 16-byte auth tag) so the server can decrypt with the same key on
+ * download. Key coordination:
+ *  - Password pastes: the key is derived here with PBKDF2-SHA256 and a random
+ *    salt; the password never leaves the browser. The client sends the key and
+ *    salt; the server stores the salt and the key wrapped with the master key,
+ *    and on reveal compares the client's re-derived key in constant time.
  *  - Non-password pastes: the client generates a random key, encrypts files
  *    with it, and sends the raw key to the server, which wraps it with the
  *    master key for later unwrapping.
@@ -91,15 +91,13 @@ export async function generateContentKey(): Promise<Bytes> {
 }
 
 /**
- * Derives a 256-bit content key from a password using PBKDF2 (WebCrypto),
- * matching the server's PBKDF2-SHA256 derivation and iteration count.
- * Password-protected pastes send the salt (and iteration count) to the server
- * so it can derive the same key to decrypt attachments on download.
+ * Derives a 256-bit content key from a password using PBKDF2-SHA256
+ * (WebCrypto). Creating a paste omits `salt` to get a fresh random one;
+ * unlocking passes the paste's stored salt to re-derive the same key.
  */
 export async function deriveKeyFromPassword(
   password: string,
-  salt?: Bytes,
-  iterations: number = PBKDF2_ITERATIONS
+  salt?: Bytes
 ): Promise<{ key: Bytes; salt: Bytes }> {
   const s = salt ?? crypto.getRandomValues(new Uint8Array(16));
   const baseKey = await crypto.subtle.importKey(
@@ -114,7 +112,7 @@ export async function deriveKeyFromPassword(
       name: "PBKDF2",
       hash: "SHA-256",
       salt: s,
-      iterations,
+      iterations: PBKDF2_ITERATIONS,
     },
     baseKey,
     KEY_LEN * 8
