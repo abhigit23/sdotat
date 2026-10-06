@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 import { Clock, Dices, Flame, Lock, Plus, X } from "lucide-react";
 import CopyButton from "./copy-button";
 import FileIcon from "./file-icon";
@@ -19,9 +18,9 @@ import {
   MAX_FILE_BYTES,
   MAX_FILES_PER_PASTE,
   MAX_PASTE_TOTAL_BYTES,
-} from "@/lib/validation";
+} from "@/lib/limits";
 import { formatBytes, formatFileCount } from "@/lib/format";
-import { mapWithConcurrency } from "@/lib/map-concurrency";
+import { mapWithByteBudget } from "@/lib/map-concurrency";
 import { generatePassphrase, isWeakPassword } from "@/lib/passphrase";
 import { saveDeleteToken } from "@/lib/delete-tokens";
 
@@ -46,7 +45,9 @@ type CreateResult = {
   passwordProtected: boolean;
 };
 
-const UPLOAD_CONCURRENCY = 3;
+// Raw file bytes allowed in flight at once while uploading (see
+// mapWithByteBudget). One file always runs, however large.
+const UPLOAD_BYTE_BUDGET = 64 * 1024 * 1024;
 // Files above this are sent as 8 MB multipart chunks so a dropped connection
 // only retries the failed chunk instead of restarting the whole file.
 const MULTIPART_THRESHOLD_BYTES = 8 * 1024 * 1024;
@@ -307,27 +308,43 @@ export default function PasteEditor() {
         }
       };
 
-      // Encrypt each file immediately before its upload so at most
-      // UPLOAD_CONCURRENCY ciphertexts are held in memory at once and
-      // encryption overlaps with in-flight uploads.
-      const fileMeta = await mapWithConcurrency(
+      // The upload SDK is only needed for attachments, so text-only pastes
+      // (most of them) never download it.
+      const upload =
+        files.length > 0
+          ? (await import("@vercel/blob/client")).upload
+          : null;
+
+      // Encrypt each file immediately before its upload so encryption
+      // overlaps with in-flight uploads. Files start while the raw bytes in
+      // flight stay under the budget (each holds ~3x its size while prepared),
+      // so several small files go in parallel but large ones go one at a time
+      // instead of exhausting a phone's memory.
+      const fileMeta = await mapWithByteBudget(
         files,
-        UPLOAD_CONCURRENCY,
+        UPLOAD_BYTE_BUDGET,
+        (f) => f.size,
         async (f, i) => {
           if (controller.signal.aborted) {
             throw new DOMException("Upload cancelled", "AbortError");
           }
-          const { bytes, meta } = await prepareFileForUpload(key, f);
+          // Wrapped so the ciphertext array goes out of scope once it's copied
+          // into the Blob, rather than staying alive for the whole upload.
+          const { body, meta } = await (async () => {
+            const { bytes, meta } = await prepareFileForUpload(key, f);
+            return { body: new Blob([bytes]), meta };
+          })();
+          if (!upload) throw new Error("Upload SDK not loaded");
           const blob = await upload(
             `files/${crypto.randomUUID()}`,
-            new Blob([bytes]),
+            body,
             {
               access: "private",
               contentType: "application/octet-stream",
               handleUploadUrl: "/api/pastes/upload-token",
               // Counted against the daily upload quota and enforced by Blob.
-              clientPayload: JSON.stringify({ size: bytes.byteLength }),
-              multipart: bytes.byteLength > MULTIPART_THRESHOLD_BYTES,
+              clientPayload: JSON.stringify({ size: body.size }),
+              multipart: body.size > MULTIPART_THRESHOLD_BYTES,
               abortSignal: controller.signal,
               onUploadProgress: ({ percentage }) => report(i, percentage),
             },

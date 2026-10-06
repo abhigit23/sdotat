@@ -22,12 +22,26 @@ const PBKDF2_ITERATIONS = 210_000;
 
 type Bytes = Uint8Array<ArrayBuffer>;
 
+async function deflate(bytes: Uint8Array): Promise<Bytes> {
+  const stream = new Blob([bytes as Bytes]).stream().pipeThrough(
+    new CompressionStream("deflate")
+  );
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Bytes compressed as a trial before deciding to compress a whole file. */
+const SAMPLE_BYTES = 256 * 1024;
+/** A sample must shrink at least this much for the full compression to run. */
+const MIN_SAMPLE_SAVING = 0.05;
+
 /**
  * Compresses a Uint8Array using the browser-native "deflate" CompressionStream,
  * keeping the result only when it is smaller (matching the server's handling
- * of paste text). Already-compressed formats (JPEG, ZIP, MP4, ...) usually
- * grow, so they are stored as-is. Also returns the input unchanged if
- * CompressionStream is unavailable.
+ * of paste text). Already-compressed formats (JPEG, ZIP, MP4, ...) don't
+ * shrink, so for large inputs a leading sample is tried first and, if it
+ * barely compresses, the input is stored as-is without compressing it all
+ * (seconds of CPU and a second copy in memory on phones). Also returns the
+ * input unchanged if CompressionStream is unavailable.
  */
 export async function compressDeflate(
   bytes: Bytes
@@ -36,10 +50,15 @@ export async function compressDeflate(
     return { data: bytes, compressed: false };
   }
 
-  const stream = new Blob([bytes]).stream().pipeThrough(
-    new CompressionStream("deflate")
-  );
-  const deflated = new Uint8Array(await new Response(stream).arrayBuffer());
+  if (bytes.length > SAMPLE_BYTES * 2) {
+    const sample = bytes.subarray(0, SAMPLE_BYTES);
+    const deflatedSample = await deflate(sample);
+    if (deflatedSample.length > sample.length * (1 - MIN_SAMPLE_SAVING)) {
+      return { data: bytes, compressed: false };
+    }
+  }
+
+  const deflated = await deflate(bytes);
   return deflated.length < bytes.length
     ? { data: deflated, compressed: true }
     : { data: bytes, compressed: false };

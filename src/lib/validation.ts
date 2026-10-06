@@ -1,11 +1,19 @@
 import { z } from "zod";
+import {
+  MAX_CONTENT_BYTES,
+  MAX_FILE_BYTES,
+  MAX_FILES_PER_PASTE,
+  MAX_PASTE_TOTAL_BYTES,
+} from "./limits";
 
-if (typeof window !== "undefined") {
-  // JIT validators compile with new Function, which the strict CSP reports in
-  // the browser. Keep jitless only where that CSP applies; the server (the hot
-  // safeParse path) has no CSP and uses the JIT.
-  z.config({ jitless: true });
-}
+// Server-only: the browser imports limits from ./limits so Zod stays out of
+// the client bundle.
+export {
+  MAX_CONTENT_BYTES,
+  MAX_FILE_BYTES,
+  MAX_FILES_PER_PASTE,
+  MAX_PASTE_TOTAL_BYTES,
+};
 
 export const EXPIRY_OPTIONS = [
   "5min",
@@ -19,12 +27,6 @@ export const EXPIRY_OPTIONS = [
   "3d",
 ] as const;
 export type ExpiryOption = (typeof EXPIRY_OPTIONS)[number];
-
-export const MAX_CONTENT_BYTES = 1_000_000; // 1 MB
-
-export const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per file
-export const MAX_FILES_PER_PASTE = 20;
-export const MAX_PASTE_TOTAL_BYTES = 100 * 1024 * 1024; // 100 MB per paste
 
 const SAFE_FILENAME = /^[^/\\\0]+$/;
 
