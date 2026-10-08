@@ -79,9 +79,10 @@ export default function PasteContent({
   const textClasses = wrap
     ? "whitespace-pre-wrap wrap-break-word"
     : "whitespace-pre";
-  // Shrinks to whatever height is left on the page and scrolls inside.
+  // Shrinks to whatever height is left on the page and scrolls inside. Shrinks
+  // 4x faster than the attachment list, so long text gives way first.
   const boxClasses =
-    "min-h-16 w-full overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 short:p-3 dark:border-zinc-800 dark:bg-zinc-950";
+    "min-h-16 w-full shrink-[4] overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 short:p-3 dark:border-zinc-800 dark:bg-zinc-950";
 
   return (
     <div className="flex min-h-0 w-full flex-col">

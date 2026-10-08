@@ -165,8 +165,13 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
   const totalSize = attachments.reduce((sum, a) => sum + a.size, 0);
 
   return (
-    <div className="mt-3 w-full shrink-0 short:mt-2">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 short:mb-1">
+    // Takes part in the page's one-screen layout: grows to show every file
+    // that fits and only scrolls when the page runs out of room. The text box
+    // shrinks 4x faster (PasteContent), so a long paste mostly scrolls in its
+    // own box rather than squeezing the file list. (Shrink factors stay >= 1:
+    // a lone item with a factor below 1 absorbs only that share of overflow.)
+    <div className="mt-3 flex min-h-0 w-full flex-col short:mt-2">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 short:mb-1">
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
           Attachments ({attachments.length})
         </h2>
@@ -197,12 +202,12 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
         )}
       </div>
       {error && (
-        <p role="alert" className="mb-2 text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="mb-2 shrink-0 text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}
-      {/* Many attachments scroll here instead of growing the page. */}
-      <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto short:max-h-28">
+      {/* Scrolls only once the list outgrows the space left on the page. */}
+      <ul className="flex min-h-0 flex-col gap-2 overflow-y-auto">
         {attachments.map((a) => (
           <li key={a.id} className="relative shrink-0 overflow-hidden rounded-md">
             <button
