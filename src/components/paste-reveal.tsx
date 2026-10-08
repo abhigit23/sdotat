@@ -49,11 +49,6 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
   if (view.status === "success") {
     return (
       <PasteContent
-        title={
-          view.burn
-            ? "Revealed once — this paste has been deleted"
-            : "Paste content"
-        }
         burn={view.burn}
         views={view.views}
         content={view.content}

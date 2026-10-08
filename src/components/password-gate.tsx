@@ -67,8 +67,8 @@ export default function PasswordGate({ code, salt }: Props) {
   if (view.status === "success") {
     return (
       <PasteContent
-        title="Revealed securely"
         burn={view.burn}
+        passwordProtected
         views={view.views}
         content={view.content}
         code={code}

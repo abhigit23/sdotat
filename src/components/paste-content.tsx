@@ -6,6 +6,7 @@ import {
   Download,
   Eye,
   ListOrdered,
+  Lock,
   Maximize2,
   Minimize2,
   TextWrap,
@@ -17,8 +18,9 @@ import { saveBlob } from "@/lib/download";
 import { formatTimeUntil } from "@/lib/format";
 
 type Props = {
-  title: string;
   burn: boolean;
+  /** Unlocked with a password; shown as an item in the meta line. */
+  passwordProtected?: boolean;
   views: number;
   content: string;
   code: string;
@@ -38,8 +40,8 @@ const TOOL_BUTTON =
 const EXPANDED_STATE = "paste-expanded";
 
 export default function PasteContent({
-  title,
   burn,
+  passwordProtected = false,
   views,
   content,
   code,
@@ -48,6 +50,11 @@ export default function PasteContent({
   expiresAt,
 }: Props) {
   const hasText = content.trim().length > 0;
+  const title = burn
+    ? "Revealed once — this paste has been deleted"
+    : hasText
+      ? "Paste content"
+      : "Shared files";
   const [wrap, setWrap] = useState(true);
   const [lineNumbers, setLineNumbers] = useState(false);
   // Set once the user has copied or downloaded the text of a burned paste.
@@ -169,15 +176,12 @@ export default function PasteContent({
           expanded ? "min-h-9 pr-12" : ""
         }`}
       >
-        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 sm:justify-start">
+        {/* No "·" separators: each item has its own icon, and separators
+            would dangle at line ends when this wraps on phones. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:justify-start">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            {hasText || burn ? title : "Shared files"}
+            {title}
           </h2>
-          {!burn && (
-            <span aria-hidden className="text-xs text-zinc-500 dark:text-zinc-400">
-              ·
-            </span>
-          )}
           {!burn && (
             <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
               <Eye size={14} aria-hidden />
@@ -185,18 +189,16 @@ export default function PasteContent({
             </p>
           )}
           {!burn && expiresAt && (
-            <>
-              <span
-                aria-hidden
-                className="text-xs text-zinc-500 dark:text-zinc-400"
-              >
-                ·
-              </span>
-              <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                <Clock size={12} aria-hidden />
-                {expiresIn ? `Expires in ${expiresIn}` : "Expired"}
-              </p>
-            </>
+            <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              <Clock size={12} aria-hidden />
+              {expiresIn ? `Expires in ${expiresIn}` : "Expired"}
+            </p>
+          )}
+          {passwordProtected && (
+            <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+              <Lock size={12} aria-hidden />
+              Password protected
+            </p>
           )}
         </div>
         {hasText && (
