@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
   Download,
   Eye,
   ListOrdered,
+  Maximize2,
+  Minimize2,
   TextWrap,
   TriangleAlert,
 } from "lucide-react";
@@ -32,6 +34,9 @@ const MAX_NUMBERED_LINES = 5000;
 const TOOL_BUTTON =
   "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 dark:hover:bg-zinc-800";
 
+/** History entry marker for the expanded view, so Back closes it. */
+const EXPANDED_STATE = "paste-expanded";
+
 export default function PasteContent({
   title,
   burn,
@@ -48,6 +53,11 @@ export default function PasteContent({
   // Set once the user has copied or downloaded the text of a burned paste.
   const [saved, setSaved] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // The text filling the window (not browser fullscreen).
+  const [expanded, setExpanded] = useState(false);
+  // The Expand/Close button. Focus is put on it explicitly when the view
+  // opens or closes, since some browsers (Safari) don't focus clicked buttons.
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
 
   const lines = useMemo(() => (hasText ? content.split("\n") : []), [content, hasText]);
   const canNumber = lines.length <= MAX_NUMBERED_LINES;
@@ -68,6 +78,38 @@ export default function PasteContent({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [atRisk]);
 
+  // Opening adds a history entry so the Back button (what phone users reach
+  // for) closes the view instead of leaving the page. Closing by button or
+  // Esc goes back through that entry, so history stays as it was.
+  function openExpanded() {
+    history.pushState({ [EXPANDED_STATE]: true }, "");
+    setExpanded(true);
+    expandButtonRef.current?.focus();
+  }
+  const finishClose = useCallback(() => {
+    setExpanded(false);
+    expandButtonRef.current?.focus();
+  }, []);
+  const closeExpanded = useCallback(() => {
+    // Leaves through the history entry; popstate then finishes the close.
+    if (history.state?.[EXPANDED_STATE]) history.back();
+    else finishClose();
+  }, [finishClose]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onPopState = finishClose;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeExpanded();
+    };
+    window.addEventListener("popstate", onPopState);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [expanded, closeExpanded, finishClose]);
+
   function downloadText() {
     saveBlob(
       new Blob([content], { type: "text/plain;charset=utf-8" }),
@@ -80,16 +122,35 @@ export default function PasteContent({
     ? "whitespace-pre-wrap wrap-break-word"
     : "whitespace-pre";
   // Shrinks to whatever height is left on the page and scrolls inside. Shrinks
-  // 4x faster than the attachment list, so long text gives way first.
-  const boxClasses =
-    "min-h-16 w-full shrink-[4] overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 short:p-3 dark:border-zinc-800 dark:bg-zinc-950";
+  // 4x faster than the attachment list, so long text gives way first. When
+  // expanded it grows to fill the window instead.
+  const boxClasses = `min-h-16 w-full shrink-[4] overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 short:p-3 dark:border-zinc-800 dark:bg-zinc-950 ${
+    expanded ? "flex-1" : ""
+  }`;
 
   return (
     <div className="flex min-h-0 w-full flex-col">
+      {/* The banner, header and text box. Normally `contents` (lays out as if
+          this wrapper weren't there); expanded, the same elements become a
+          window-filling layer, so scroll position and Wrap/Lines carry over.
+          The theme toggle (fixed, z-50) stays on top: the right padding keeps
+          the toolbar clear of it. */}
+      <div
+        className={
+          expanded
+            ? "fixed inset-0 z-40 flex flex-col bg-zinc-50 p-4 dark:bg-zinc-950"
+            : "contents"
+        }
+        role={expanded ? "dialog" : undefined}
+        aria-modal={expanded || undefined}
+        aria-label={expanded ? "Paste content, expanded" : undefined}
+      >
       {burn && hasText && (
         <div
           role="status"
           className={`mb-3 flex shrink-0 items-start gap-2 rounded-lg border p-3 text-sm short:mb-2 short:p-2 ${
+            expanded ? "mr-12" : ""
+          } ${
             saved
               ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200"
               : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
@@ -103,7 +164,11 @@ export default function PasteContent({
           </p>
         </div>
       )}
-      <div className="mb-3 flex shrink-0 flex-col items-center gap-2 text-center short:mb-2 short:gap-1 sm:flex-row sm:items-center sm:justify-between sm:text-left">
+      <div
+        className={`mb-3 flex shrink-0 flex-col items-center gap-2 text-center short:mb-2 short:gap-1 sm:flex-row sm:items-center sm:justify-between sm:text-left ${
+          expanded ? "min-h-9 pr-12" : ""
+        }`}
+      >
         <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 sm:justify-start">
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
             {hasText || burn ? title : "Shared files"}
@@ -182,6 +247,25 @@ export default function PasteContent({
               <span className="sr-only sm:hidden">Download as .txt</span>
             </button>
             <CopyButton text={content} onCopy={() => setSaved(true)} />
+            <button
+              ref={expandButtonRef}
+              type="button"
+              onClick={expanded ? closeExpanded : openExpanded}
+              title={expanded ? "Close expanded view (Esc)" : "Expand to fill the window"}
+              className={`${TOOL_BUTTON} border-zinc-300 dark:border-zinc-700`}
+            >
+              {expanded ? (
+                <Minimize2 size={14} aria-hidden />
+              ) : (
+                <Maximize2 size={14} aria-hidden />
+              )}
+              <span className="hidden sm:inline">
+                {expanded ? "Close" : "Expand"}
+              </span>
+              <span className="sr-only sm:hidden">
+                {expanded ? "Close expanded view" : "Expand text"}
+              </span>
+            </button>
           </div>
         )}
       </div>
@@ -205,6 +289,7 @@ export default function PasteContent({
         ) : (
           <pre className={`${boxClasses} ${textClasses}`}>{content}</pre>
         ))}
+      </div>
       <PasteFiles code={code} attachments={attachments} contentKey={contentKey} />
     </div>
   );
