@@ -33,8 +33,11 @@ type Props = {
 // too heavy for very long pastes, so numbering is only offered up to this.
 const MAX_NUMBERED_LINES = 5000;
 
+// Fixed 34px height (their natural height with a text label) so icon-only
+// buttons on phones match Copy, which keeps its label. On phones the
+// icon-only ones are 34px squares, keeping the toolbar on one row.
 const TOOL_BUTTON =
-  "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 dark:hover:bg-zinc-800";
+  "inline-flex h-[34px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 max-sm:w-[34px] max-sm:justify-center max-sm:px-0 dark:hover:bg-zinc-800";
 
 /** History entry marker for the expanded view, so Back closes it. */
 const EXPANDED_STATE = "paste-expanded";
@@ -125,6 +128,13 @@ export default function PasteContent({
     setSaved(true);
   }
 
+  // Views, expiry and password items. Hidden in the expanded view on phones,
+  // which keeps just the title so the text gets the room (they still show in
+  // the normal view and in the expanded view on wider screens).
+  const metaItemClasses = `flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 ${
+    expanded ? "max-sm:hidden" : ""
+  }`;
+
   const textClasses = wrap
     ? "whitespace-pre-wrap wrap-break-word"
     : "whitespace-pre";
@@ -171,38 +181,50 @@ export default function PasteContent({
           </p>
         </div>
       )}
+      {/* Expanded on wide screens: one row lined up with the theme toggle
+          (pr-12 keeps clear of it). Expanded on phones: a reading mode with
+          two left-aligned rows, just the title lined up with the toggle, then
+          the tools with Close at the far right. */}
       <div
         className={`mb-3 flex shrink-0 flex-col items-center gap-2 text-center short:mb-2 short:gap-1 sm:flex-row sm:items-center sm:justify-between sm:text-left ${
-          expanded ? "min-h-9 pr-12" : ""
+          expanded ? "max-sm:items-stretch max-sm:text-left sm:min-h-9 sm:pr-12" : ""
         }`}
       >
         {/* No "·" separators: each item has its own icon, and separators
             would dangle at line ends when this wraps on phones. */}
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:justify-start">
+        <div
+          className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:justify-start ${
+            expanded ? "max-sm:min-h-9 max-sm:justify-start max-sm:pr-12" : ""
+          }`}
+        >
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
             {title}
           </h2>
           {!burn && (
-            <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className={metaItemClasses}>
               <Eye size={14} aria-hidden />
               {views} view{views === 1 ? "" : "s"}
             </p>
           )}
           {!burn && expiresAt && (
-            <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className={metaItemClasses}>
               <Clock size={12} aria-hidden />
               {expiresIn ? `Expires in ${expiresIn}` : "Expired"}
             </p>
           )}
           {passwordProtected && (
-            <p className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className={metaItemClasses}>
               <Lock size={12} aria-hidden />
               Password protected
             </p>
           )}
         </div>
         {hasText && (
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+          <div
+            className={`flex shrink-0 flex-wrap items-center justify-center gap-2 ${
+              expanded ? "max-sm:justify-start" : ""
+            }`}
+          >
             <button
               type="button"
               onClick={() => setWrap((w) => !w)}
@@ -248,13 +270,19 @@ export default function PasteContent({
               <span className="hidden sm:inline">.txt</span>
               <span className="sr-only sm:hidden">Download as .txt</span>
             </button>
-            <CopyButton text={content} onCopy={() => setSaved(true)} />
+            <CopyButton
+              text={content}
+              onCopy={() => setSaved(true)}
+              className="h-[34px]"
+            />
             <button
               ref={expandButtonRef}
               type="button"
               onClick={expanded ? closeExpanded : openExpanded}
               title={expanded ? "Close expanded view (Esc)" : "Expand to fill the window"}
-              className={`${TOOL_BUTTON} border-zinc-300 dark:border-zinc-700`}
+              className={`${TOOL_BUTTON} border-zinc-300 dark:border-zinc-700 ${
+                expanded ? "max-sm:ml-auto" : ""
+              }`}
             >
               {expanded ? (
                 <Minimize2 size={14} aria-hidden />

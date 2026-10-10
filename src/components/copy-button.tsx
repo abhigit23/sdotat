@@ -20,6 +20,7 @@ export default function CopyButton({
   onCopy,
   variant = "button",
   labelClassName = "",
+  className = "",
 }: {
   text: string;
   label?: string;
@@ -28,6 +29,8 @@ export default function CopyButton({
   variant?: keyof typeof VARIANT_CLASS;
   /** Extra classes for the label grid, e.g. to change its alignment. */
   labelClassName?: string;
+  /** Extra classes for the button, e.g. a fixed height to match a toolbar. */
+  className?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const isLink = variant === "link";
@@ -62,7 +65,7 @@ export default function CopyButton({
           : copied
             ? "text-emerald-700 dark:text-emerald-400"
             : "text-blue-600 hover:underline dark:text-blue-400"
-      }`}
+      } ${className}`}
     >
       {!isLink &&
         (copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />)}
