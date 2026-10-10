@@ -128,6 +128,9 @@ export default function PasteContent({
     setSaved(true);
   }
 
+  // The "copy it now" / "saved" warning shown above a burned paste's text.
+  const hasBanner = burn && hasText;
+
   // Views, expiry and password items. Hidden in the expanded view on phones,
   // which keeps just the title so the text gets the room (they still show in
   // the normal view and in the expanded view on wider screens).
@@ -162,7 +165,7 @@ export default function PasteContent({
         aria-modal={expanded || undefined}
         aria-label={expanded ? "Paste content, expanded" : undefined}
       >
-      {burn && hasText && (
+      {hasBanner && (
         <div
           role="status"
           className={`mb-3 flex shrink-0 items-start gap-2 rounded-lg border p-3 text-sm short:mb-2 short:p-2 ${
@@ -175,16 +178,29 @@ export default function PasteContent({
         >
           <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden />
           <p>
-            {saved
-              ? "Saved. This paste is already deleted, so keep your copy."
-              : "Copy it now. This paste is already deleted and can't be shown again. If you refresh or leave this page, the content is lost."}
+            {saved ? (
+              "Saved. This paste is already deleted, so keep your copy."
+            ) : (
+              <>
+                Copy it now. This paste is already deleted and can&apos;t be
+                shown again.
+                {/* Dropped in the expanded view on phones to save space; the
+                    browser still asks before a refresh or leaving the page. */}
+                <span className={expanded ? "max-sm:hidden" : ""}>
+                  {" "}
+                  If you refresh or leave this page, the content is lost.
+                </span>
+              </>
+            )}
           </p>
         </div>
       )}
       {/* Expanded on wide screens: one row lined up with the theme toggle
           (pr-12 keeps clear of it). Expanded on phones: a reading mode with
           two left-aligned rows, just the title lined up with the toggle, then
-          the tools with Close at the far right. */}
+          the tools with Close at the far right. With the burn banner on top,
+          the banner sits beside the toggle instead, so the title row needs no
+          toggle spacing. */}
       <div
         className={`mb-3 flex shrink-0 flex-col items-center gap-2 text-center short:mb-2 short:gap-1 sm:flex-row sm:items-center sm:justify-between sm:text-left ${
           expanded ? "max-sm:items-stretch max-sm:text-left sm:min-h-9 sm:pr-12" : ""
@@ -194,11 +210,24 @@ export default function PasteContent({
             would dangle at line ends when this wraps on phones. */}
         <div
           className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 sm:justify-start ${
-            expanded ? "max-sm:min-h-9 max-sm:justify-start max-sm:pr-12" : ""
+            !expanded
+              ? ""
+              : hasBanner
+                ? "max-sm:justify-start"
+                : "max-sm:min-h-9 max-sm:justify-start max-sm:pr-12"
           }`}
         >
           <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            {title}
+            {expanded && burn ? (
+              // The banner above already says the paste is deleted, so phones
+              // get the short form in the expanded view.
+              <>
+                <span className="max-sm:hidden">{title}</span>
+                <span className="sm:hidden">Revealed once</span>
+              </>
+            ) : (
+              title
+            )}
           </h2>
           {!burn && (
             <p className={metaItemClasses}>
