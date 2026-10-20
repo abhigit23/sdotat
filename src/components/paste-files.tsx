@@ -85,9 +85,10 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
     }).blob();
   }
 
+  // Runs once a download slot frees up; the row is already marked busy (and
+  // shows "Queued") from the click. A progress key marks it as started.
   async function download(a: AttachmentMeta) {
-    setBusyId(a.id, true);
-    setError(null);
+    setProgress((prev) => ({ ...prev, [a.id]: 0 }));
     try {
       // Throttle progress updates to integer percent changes — a per-chunk
       // setState on a 50 MB file would trigger hundreds of React renders.
@@ -101,10 +102,22 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
       });
       saveBlob(blob, a.filename);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "Network error");
+      const message =
+        e instanceof Error && e.message ? e.message : "Network error";
+      setError(`${a.filename}: ${message}`);
     }
-    setProgress((prev) => ({ ...prev, [a.id]: 0 }));
+    setProgress((prev) => {
+      const next = { ...prev };
+      delete next[a.id];
+      return next;
+    });
     setBusyId(a.id, false);
+  }
+
+  function queueDownload(a: AttachmentMeta) {
+    if (busy.has(a.id)) return;
+    setBusyId(a.id, true);
+    runWhenReady(() => download(a));
   }
 
   async function downloadAll() {
@@ -212,7 +225,7 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
           <li key={a.id} className="relative shrink-0 overflow-hidden rounded-md">
             <button
               type="button"
-              onClick={() => runWhenReady(() => download(a))}
+              onClick={() => queueDownload(a)}
               disabled={busy.has(a.id)}
               className="relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-md border border-zinc-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
             >
@@ -232,7 +245,11 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
                 {a.filename}
               </span>
               <span className="relative shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
-                {formatBytes(a.size)}
+                {!busy.has(a.id)
+                  ? formatBytes(a.size)
+                  : a.id in progress
+                    ? `${progress[a.id]}%`
+                    : "Queued"}
               </span>
             </button>
           </li>
