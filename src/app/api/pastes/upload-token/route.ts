@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import {
-  checkUploadLimit,
-  claimUploadSize,
-  reserveUploadBytes,
-} from "@/lib/rate-limit";
+import { checkUploadLimit, claimUpload } from "@/lib/rate-limit";
 import { MAX_FILE_BYTES, UPLOAD_PATHNAME } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -50,11 +46,12 @@ export async function POST(req: Request) {
           throw new Error("Invalid upload path");
         }
         const size = parseDeclaredSize(clientPayload);
-        // Recorded before the quota so a reused pathname costs no quota.
-        if (!(await claimUploadSize(pathname, size))) {
+        // A reused pathname is rejected before any quota is charged.
+        const claim = await claimUpload(nextReq, pathname, size);
+        if (claim === "taken") {
           throw new Error("Invalid upload path");
         }
-        if (!(await reserveUploadBytes(nextReq, size))) {
+        if (claim === "quota") {
           throw new QuotaError("Daily upload limit reached. Try again tomorrow.");
         }
         return {

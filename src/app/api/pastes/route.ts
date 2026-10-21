@@ -16,7 +16,11 @@ import {
   describeDbError,
   pgErrorCode,
 } from "@/lib/paste-service";
-import { checkCreateLimit, getUploadSizes } from "@/lib/rate-limit";
+import {
+  checkCreateLimit,
+  getUploadSizes,
+  reserveTextBytes,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -131,6 +135,14 @@ export async function POST(req: NextRequest) {
     contentKey,
     input.content
   );
+
+  if (!(await reserveTextBytes(req, ciphertext.length))) {
+    await discardUploads();
+    return NextResponse.json(
+      { error: "Daily paste limit reached. Try again tomorrow." },
+      { status: 429 }
+    );
+  }
 
   const keyWrapped = wrapKey(contentKey);
   const deleteToken = generateDeleteToken();
