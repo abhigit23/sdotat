@@ -37,8 +37,19 @@ const fileEntrySchema = z.object({
     .refine((v) => SAFE_FILENAME.test(v), "invalid filename"),
   mime: z.string().min(1).max(128),
   size: z.number().int().positive().max(MAX_FILE_BYTES),
-  iv: z.string().min(1),
-  authTag: z.string().min(1),
+  // AES-GCM's 12-byte IV and 16-byte auth tag, base64. Exact, so the stored
+  // columns can't be padded with junk that bypasses the text quota.
+  iv: z
+    .string()
+    .max(24)
+    .refine((v) => Buffer.from(v, "base64").length === 12, "invalid file IV"),
+  authTag: z
+    .string()
+    .max(32)
+    .refine(
+      (v) => Buffer.from(v, "base64").length === 16,
+      "invalid file auth tag"
+    ),
   compression: z.enum(["deflate", "none"]).default("deflate"),
 });
 
