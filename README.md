@@ -150,7 +150,7 @@ Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so
 
 - This is a **server-side** encryption model: the server holds the master key and can decrypt content. It is NOT zero-knowledge like PrivateBin — that trade-off buys short, typable URLs.
 - Ciphertext is encrypted at rest with a per-paste key that is itself wrapped by a master key stored only in env. File blobs (and their names) are encrypted client-side before they ever reach object storage.
-- Content is always rendered through React's text-escaping; the only `dangerouslySetInnerHTML` usages are a few small nonce'd inline `<head>` scripts (a Trusted Types polyfill, theme init, and the `ld+json` structured data).
+- Content is always rendered through React's text-escaping; the only `dangerouslySetInnerHTML` usages are two small nonce'd inline `<head>` scripts (theme init and the `ld+json` structured data).
 - The XSS defense is the strict CSP: `nonce` + `strict-dynamic`, no `unsafe-inline`/`unsafe-eval` in production, `script-src-attr 'none'`.
 - Uploaded MIME types are never trusted for serving: downloads are `application/octet-stream` with `Content-Security-Policy: default-src 'none'; sandbox`.
 - HSTS is not set by the app; Vercel's edge adds it on deployed domains.
