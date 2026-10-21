@@ -188,20 +188,24 @@ export async function claimPasteForView(code: string): Promise<boolean> {
 }
 
 /**
- * Removes all expired pastes and their attachment blobs. Used by the cleanup
- * job. Returns the number of pastes deleted.
+ * Removes expired pastes and their attachment blobs, `batchSize` at a time.
+ * The cleanup job clears them all; paste creation also sweeps a single small
+ * batch now and then (`maxBatches: 1`), since Hobby cron runs only daily.
+ * Returns the number of pastes deleted.
  */
-export async function deleteExpiredPastes(): Promise<number> {
+export async function deleteExpiredPastes({
+  batchSize = 100,
+  maxBatches = Infinity,
+}: { batchSize?: number; maxBatches?: number } = {}): Promise<number> {
   if (!db) return 0;
-  const BATCH_SIZE = 50;
   let totalDeleted = 0;
 
-  while (true) {
+  for (let batch = 0; batch < maxBatches; batch++) {
     const expired = await db
       .select({ code: schema.pastes.code })
       .from(schema.pastes)
       .where(sql`${schema.pastes.expiresAt} < now()`)
-      .limit(BATCH_SIZE);
+      .limit(batchSize);
 
     if (expired.length === 0) break;
 

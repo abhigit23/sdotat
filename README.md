@@ -144,7 +144,7 @@ Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so
 
 ### Cleanup
 
-`/api/cron/cleanup` runs daily (midnight UTC, configured in `vercel.json`). It deletes expired pastes with their attachment blobs, then sweeps **orphaned blobs** — files that were uploaded but never attached to a paste (tab closed, request failed) and are older than one hour. It is guarded by a `Bearer CRON_SECRET` check. Expiry is also enforced lazily on every read.
+`/api/cron/cleanup` runs daily (midnight UTC, configured in `vercel.json`). It deletes expired pastes with their attachment blobs, then sweeps **orphaned blobs** — files that were uploaded but never attached to a paste (tab closed, request failed) and are older than one hour. It is guarded by a `Bearer CRON_SECRET` check. Because Hobby cron runs only daily, about 1 in 20 paste creations also deletes a small batch of expired pastes after responding. Expiry is also enforced lazily on every read.
 
 ## Security notes
 

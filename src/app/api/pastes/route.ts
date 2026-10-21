@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { Buffer } from "node:buffer";
 import { createPasteSchema, MAX_PASTE_TOTAL_BYTES } from "@/lib/validation";
 import {
@@ -12,6 +12,7 @@ import {
   createPaste,
   addAttachments,
   deleteBlobs,
+  deleteExpiredPastes,
   deletePaste,
   describeDbError,
   pgErrorCode,
@@ -23,6 +24,9 @@ import {
 } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+/** Share of creates that also sweep a batch of expired pastes. */
+const OPPORTUNISTIC_CLEANUP_CHANCE = 1 / 20;
 
 /**
  * Checks the client's file entries against the sizes actually stored. The
@@ -200,6 +204,17 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+  }
+
+  // Hobby cron runs only daily, so short-lived pastes (and their blobs) would
+  // otherwise take up storage for up to a day after expiring. Every so often a
+  // create also clears a small batch, after the response is sent.
+  if (Math.random() < OPPORTUNISTIC_CLEANUP_CHANCE) {
+    after(async () => {
+      await deleteExpiredPastes({ batchSize: 25, maxBatches: 1 }).catch((e) =>
+        console.error("opportunistic cleanup failed", describeDbError(e))
+      );
+    });
   }
 
   const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
