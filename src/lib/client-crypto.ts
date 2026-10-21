@@ -150,6 +150,64 @@ export async function encryptBytes(
   return { ciphertext: data, iv, authTag };
 }
 
+/**
+ * Inflates `bytes`, failing once the output passes `maxBytes` so a crafted
+ * deflate stream (decompression bomb) can't exhaust memory.
+ */
+async function inflate(bytes: Bytes, maxBytes: number): Promise<Bytes> {
+  let seen = 0;
+  const stream = new Blob([bytes])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate"))
+    .pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          seen += chunk.byteLength;
+          if (seen > maxBytes) {
+            throw new Error("File exceeds its recorded size");
+          }
+          controller.enqueue(chunk);
+        },
+      })
+    );
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/**
+ * Reverses prepareFileForUpload: decrypts a downloaded attachment blob and
+ * inflates it if it was compressed. `sealed` must hold the ciphertext followed
+ * by TAG_LEN spare bytes, which are overwritten with the auth tag (WebCrypto
+ * expects them appended), saving a copy of the whole file. Throws if the file
+ * was tampered with or doesn't match its recorded size.
+ */
+export async function decryptFile(
+  contentKey: Bytes,
+  sealed: Bytes,
+  meta: { ivB64: string; authTagB64: string; compression: string; size: number }
+): Promise<Bytes> {
+  sealed.set(base64ToBytes(meta.authTagB64), sealed.length - TAG_LEN);
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    contentKey,
+    { name: ALGO, length: KEY_LEN * 8 },
+    false,
+    ["decrypt"]
+  );
+  const plain = new Uint8Array(
+    await crypto.subtle.decrypt(
+      { name: ALGO, iv: base64ToBytes(meta.ivB64), tagLength: TAG_LEN * 8 },
+      cryptoKey,
+      sealed
+    )
+  );
+  const data =
+    meta.compression === "deflate" ? await inflate(plain, meta.size) : plain;
+  if (data.length !== meta.size) {
+    throw new Error("File does not match its recorded size");
+  }
+  return data;
+}
+
 export type EncryptedFilePayload = {
   name: string;
   mime: string;

@@ -349,7 +349,12 @@ export default function PasteContent({
           <pre className={`${boxClasses} ${textClasses}`}>{content}</pre>
         ))}
       </div>
-      <PasteFiles code={code} attachments={attachments} contentKey={contentKey} />
+      <PasteFiles
+        code={code}
+        attachments={attachments}
+        contentKey={contentKey}
+        passwordProtected={passwordProtected}
+      />
     </div>
   );
 }

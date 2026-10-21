@@ -1,29 +1,78 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import FileIcon from "./file-icon";
 import { saveBlob } from "@/lib/download";
 import { formatBytes, formatFileCount } from "@/lib/format";
 import { mapWithConcurrency } from "@/lib/map-concurrency";
-import { createZip, dedupeNames } from "@/lib/zip";
+import { crc32, createZip, dedupeNames } from "@/lib/zip";
+import { base64ToBytes, decryptFile } from "@/lib/client-crypto";
 
 export type AttachmentMeta = {
   id: string;
   filename: string;
   mime: string;
   size: number;
+  /** Per-file AES-GCM IV and auth tag (base64), for decrypting in the browser. */
+  iv?: string;
+  authTag?: string;
+  compression?: string;
+  /** Short-lived presigned URL of the encrypted blob. */
+  url?: string;
 };
 
 type Props = {
   code: string;
   attachments: AttachmentMeta[];
+  /** Base64 content key: sent to the download route for password pastes, and
+      used to decrypt files fetched straight from the blob store. */
   contentKey?: string;
+  /** Whether the paste is password protected (the route then needs the key). */
+  passwordProtected?: boolean;
 };
 
 const DOWNLOAD_CONCURRENCY = 3;
 
-export default function PasteFiles({ code, attachments, contentKey }: Props) {
+/** AES-GCM auth tag length; see client-crypto. */
+const TAG_LEN = 16;
+
+/**
+ * Reads a response body into a single buffer with `spare` unused bytes at the
+ * end, reporting progress as a 0–1 fraction of `expected` bytes.
+ */
+async function readBody(
+  res: Response,
+  expected: number,
+  spare: number,
+  onProgress: (fraction: number) => void
+): Promise<Uint8Array<ArrayBuffer>> {
+  if (!res.body) throw new Error("No response body");
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    onProgress(Math.min(1, received / Math.max(expected, 1)));
+  }
+  const out = new Uint8Array(received + spare);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+export default function PasteFiles({
+  code,
+  attachments,
+  contentKey,
+  passwordProtected = false,
+}: Props) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, number>>({});
@@ -54,35 +103,57 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
     else pendingRef.current.push(start);
   }
 
-  // Fetches one attachment, reporting received bytes. Throws Error(message) on
-  // failure so callers decide how to surface it.
+  const keyBytes = useMemo(
+    () => (contentKey ? base64ToBytes(contentKey) : null),
+    [contentKey]
+  );
+
+  // Downloads the encrypted blob straight from the store and decrypts it
+  // here, so the file never passes through (and is billed to) a function.
+  async function fetchDirect(
+    a: AttachmentMeta & { url: string; iv: string; authTag: string },
+    key: Uint8Array<ArrayBuffer>,
+    onProgress: (fraction: number) => void
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const res = await fetch(a.url);
+    if (!res.ok) throw new Error("Failed to download file");
+    const length = Number(res.headers.get("content-length")) || a.size;
+    const sealed = await readBody(res, length, TAG_LEN, onProgress);
+    return decryptFile(key, sealed, {
+      ivB64: a.iv,
+      authTagB64: a.authTag,
+      compression: a.compression ?? "deflate",
+      size: a.size,
+    });
+  }
+
+  // Fetches and decrypts one attachment, reporting progress as a 0–1
+  // fraction. Throws Error(message) on failure so callers decide how to
+  // surface it.
   async function fetchAttachment(
     a: AttachmentMeta,
-    onBytes: (received: number) => void
-  ): Promise<Blob> {
+    onProgress: (fraction: number) => void
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const { url, iv, authTag } = a;
+    if (url && iv && authTag && keyBytes) {
+      try {
+        return await fetchDirect({ ...a, url, iv, authTag }, keyBytes, onProgress);
+      } catch {
+        // The store was unreachable or the link expired (page left open):
+        // fall back to the server, which decrypts on the way through.
+      }
+    }
     const res = await fetch(`/api/pastes/${code}/files/${a.id}`, {
-      headers: contentKey ? { "X-Paste-Key": contentKey } : undefined,
+      headers:
+        passwordProtected && contentKey
+          ? { "X-Paste-Key": contentKey }
+          : undefined,
     });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error(data?.error ?? "Failed to download file");
     }
-    const body = res.body;
-    if (!body) throw new Error("No response body");
-
-    let received = 0;
-    const progressStream = body.pipeThrough(
-      new TransformStream<Uint8Array, Uint8Array>({
-        transform(chunk, controller) {
-          received += chunk.byteLength;
-          onBytes(received);
-          controller.enqueue(chunk);
-        },
-      })
-    );
-    return new Response(progressStream, {
-      headers: { "Content-Type": a.mime },
-    }).blob();
+    return readBody(res, a.size, 0, onProgress);
   }
 
   // Runs once a download slot frees up; the row is already marked busy (and
@@ -93,14 +164,14 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
       // Throttle progress updates to integer percent changes — a per-chunk
       // setState on a 50 MB file would trigger hundreds of React renders.
       let lastPct = -1;
-      const blob = await fetchAttachment(a, (received) => {
-        const pct = Math.min(100, Math.round((received / a.size) * 100));
+      const data = await fetchAttachment(a, (fraction) => {
+        const pct = Math.round(fraction * 100);
         if (pct !== lastPct) {
           lastPct = pct;
           setProgress((prev) => ({ ...prev, [a.id]: pct }));
         }
       });
-      saveBlob(blob, a.filename);
+      saveBlob(new Blob([data], { type: a.mime }), a.filename);
     } catch (e) {
       const message =
         e instanceof Error && e.message ? e.message : "Network error";
@@ -127,8 +198,8 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
     const totalSize = attachments.reduce((sum, a) => sum + a.size, 0);
     const receivedById: Record<string, number> = {};
     let lastPct = -1;
-    const report = (id: string, received: number) => {
-      receivedById[id] = received;
+    const report = (a: AttachmentMeta, fraction: number) => {
+      receivedById[a.id] = fraction * a.size;
       const got = Object.values(receivedById).reduce((s, n) => s + n, 0);
       const pct = Math.min(
         100,
@@ -145,10 +216,12 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
       DOWNLOAD_CONCURRENCY,
       async (a) => {
         try {
-          const blob = await fetchAttachment(a, (n) => report(a.id, n));
-          return { a, data: new Uint8Array(await blob.arrayBuffer()) };
+          const data = await fetchAttachment(a, (f) => report(a, f));
+          // Checksummed as each file arrives, spreading the CPU work across
+          // the downloads instead of one long pause before the save.
+          return { a, data, crc: crc32(data) };
         } catch {
-          return { a, data: null };
+          return { a, data: null, crc: 0 };
         }
       }
     );
@@ -158,7 +231,11 @@ export default function PasteFiles({ code, attachments, contentKey }: Props) {
     if (ok.length > 0) {
       const names = dedupeNames(ok.map((r) => r.a.filename));
       const zip = createZip(
-        ok.map((r, i) => ({ name: names[i], data: r.data as Uint8Array }))
+        ok.map((r, i) => ({
+          name: names[i],
+          data: r.data as Uint8Array,
+          crc: r.crc,
+        }))
       );
       saveBlob(zip, `sdotat-${code}.zip`);
     }

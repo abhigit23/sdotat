@@ -12,7 +12,9 @@ export function proxy(request: NextRequest) {
     `style-src 'self' ${isDev ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
     "img-src 'self' blob: data:",
     "font-src 'self'",
-    "connect-src 'self' blob: https://vercel.com",
+    // vercel.com: Blob uploads. *.private.blob.vercel-storage.com: attachment
+    // downloads via presigned URLs (encrypted; decrypted in the browser).
+    "connect-src 'self' blob: https://vercel.com https://*.private.blob.vercel-storage.com",
     "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

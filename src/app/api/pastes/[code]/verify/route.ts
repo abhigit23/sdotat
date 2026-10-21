@@ -9,11 +9,8 @@ import {
   getAttachmentsByCode,
   deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
-import {
-  unwrapKey,
-  decryptPasteText,
-  openAttachmentMeta,
-} from "@/lib/crypto";
+import { unwrapKey, decryptPasteText } from "@/lib/crypto";
+import { toAttachmentViews } from "@/lib/attachment-views";
 import { isValidCode } from "@/lib/ids";
 import {
   checkReadLimit,
@@ -140,10 +137,10 @@ export async function POST(
     burnAfterRead: isBurn,
     expiresAt: paste.expiresAt?.toISOString() ?? null,
     views: paste.views + 1,
-    attachments: attachments.map((a) => ({
-      ...openAttachmentMeta(contentKey, a),
-      id: a.id,
-      size: a.size,
-    })),
+    attachments: await toAttachmentViews(
+      contentKey,
+      attachments,
+      paste.expiresAt
+    ),
   }, { headers: { "Cache-Control": "no-store" } });
 }

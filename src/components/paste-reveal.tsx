@@ -12,7 +12,7 @@ type Props = {
 
 type ViewState =
   | { status: "waiting" }
-  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number; expiresAt?: string }
+  | { status: "success"; content: string; burn: boolean; attachments: AttachmentMeta[]; views: number; expiresAt?: string; contentKey?: string }
   | { status: "error"; message: string };
 
 export default function PasteReveal({ code, burnAfterRead }: Props) {
@@ -39,6 +39,7 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         attachments: data.attachments ?? [],
         views: data.views ?? 0,
         expiresAt: data.expiresAt ?? undefined,
+        contentKey: data.contentKey ?? undefined,
       });
     } catch {
       setView({ status: "error", message: "Network error" });
@@ -54,6 +55,7 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
         content={view.content}
         code={code}
         attachments={view.attachments}
+        contentKey={view.contentKey}
         expiresAt={view.expiresAt}
       />
     );

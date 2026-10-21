@@ -5,7 +5,8 @@
  * not supported — paste totals are capped far below 4 GB.
  */
 
-export type ZipEntry = { name: string; data: Uint8Array };
+/** `crc` may be passed precomputed (see crc32) to skip computing it here. */
+export type ZipEntry = { name: string; data: Uint8Array; crc?: number };
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -17,7 +18,7 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
-function crc32(data: Uint8Array): number {
+export function crc32(data: Uint8Array): number {
   let c = 0xffffffff;
   for (let i = 0; i < data.length; i++) {
     c = CRC_TABLE[(c ^ data[i]) & 0xff] ^ (c >>> 8);
@@ -56,9 +57,9 @@ export function createZip(entries: ZipEntry[], now = new Date()): Blob {
   const central: Uint8Array[] = [];
   let offset = 0;
 
-  for (const { name, data } of entries) {
+  for (const { name, data, crc: knownCrc } of entries) {
     const nameBytes = encoder.encode(name);
-    const crc = crc32(data);
+    const crc = knownCrc ?? crc32(data);
 
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true);
