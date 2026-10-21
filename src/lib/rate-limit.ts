@@ -134,38 +134,60 @@ export async function checkUploadLimit(
 }
 
 /**
- * Failed password attempts allowed per paste, from any IP, before it locks for
- * the rest of the window. Bounds online guessing even when an attacker spreads
- * guesses across many IPs.
+ * Failed password attempts allowed per paste from one IP before the paste
+ * locks for that IP for the rest of the window. Someone guessing can't lock
+ * out the real recipient, who is on a different IP.
  */
-const MAX_PASSWORD_FAILURES = 10;
+const MAX_PASSWORD_FAILURES_PER_IP = 10;
+/**
+ * Failed attempts allowed per paste across all IPs before it locks for
+ * everyone. Bounds online guessing when an attacker spreads guesses across
+ * many IPs.
+ */
+const MAX_PASSWORD_FAILURES = 50;
 const PASSWORD_WINDOW_SECONDS = 60 * 60;
 
 /** Shown when a paste is locked; deliberately gives no count or timing. */
 export const PASSWORD_LOCKED_MESSAGE = "Too many attempts. Try again later.";
 
-/**
- * True if the paste has had too many failed password attempts in the current
- * window. Always false when Redis isn't configured.
- */
-export async function isPasswordLocked(code: string): Promise<boolean> {
-  const r = getRedis();
-  if (!r) return false;
-  const failures = await r.get<number>(`pw:${code}`);
-  return (failures ?? 0) >= MAX_PASSWORD_FAILURES;
+function passwordFailureKeys(code: string, req: NextRequest): [string, string] {
+  return [`pw:${code}:${clientId(req)}`, `pw:${code}`];
 }
 
 /**
- * Counts a failed password attempt against the paste. The window starts at
- * the first failure.
+ * True if the paste has had too many failed password attempts in the current
+ * window, from this IP or from all IPs together. Always false when Redis isn't
+ * configured.
  */
-export async function recordPasswordFailure(code: string): Promise<void> {
+export async function isPasswordLocked(
+  code: string,
+  req: NextRequest
+): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return false;
+  const [fromIp, total] = await r.mget<(number | null)[]>(
+    ...passwordFailureKeys(code, req)
+  );
+  return (
+    (fromIp ?? 0) >= MAX_PASSWORD_FAILURES_PER_IP ||
+    (total ?? 0) >= MAX_PASSWORD_FAILURES
+  );
+}
+
+/**
+ * Counts a failed password attempt against the paste, for this IP and in
+ * total. Each window starts at its first failure.
+ */
+export async function recordPasswordFailure(
+  code: string,
+  req: NextRequest
+): Promise<void> {
   const r = getRedis();
   if (!r) return;
-  // One round trip: INCR, starting the window's expiry on the first failure.
+  // One round trip: INCR each key, starting its expiry on the first failure.
   await r.eval(
-    "if redis.call('INCR', KEYS[1]) == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end return 1",
-    [`pw:${code}`],
+    "for _, key in ipairs(KEYS) do if redis.call('INCR', key) == 1 then redis.call('EXPIRE', key, ARGV[1]) end end return 1",
+    passwordFailureKeys(code, req),
     [PASSWORD_WINDOW_SECONDS]
   );
 }

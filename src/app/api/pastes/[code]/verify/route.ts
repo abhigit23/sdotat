@@ -78,7 +78,7 @@ export async function POST(
 
   // Checked before comparing, so a locked paste rejects even the right
   // password until the window ends.
-  if (await isPasswordLocked(code)) {
+  if (await isPasswordLocked(code, req)) {
     return NextResponse.json({ error: PASSWORD_LOCKED_MESSAGE }, { status: 429 });
   }
 
@@ -93,7 +93,7 @@ export async function POST(
     contentKey.length !== provided.length ||
     !timingSafeEqual(contentKey, provided)
   ) {
-    await recordPasswordFailure(code);
+    await recordPasswordFailure(code, req);
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 
