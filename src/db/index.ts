@@ -16,7 +16,13 @@ function getClient() {
 
   const client = postgres(connectionString, {
     ssl: "require",
-    max: 10,
+    // A request runs at most two queries at once; a few connections cover an
+    // instance serving several requests without hogging pooler slots.
+    max: 5,
+    // Close idle connections so suspended function instances don't hold
+    // slots on the Supabase pooler.
+    idle_timeout: 20,
+    connect_timeout: 10,
     prepare: false,
   });
 
