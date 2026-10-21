@@ -2,3 +2,8 @@ allowBuilds:
   esbuild: true
   sharp: false
   unrs-resolver: false
+
+# Patched versions of transitive dependencies (security advisories).
+overrides:
+  sharp: ^0.35.5
+  source-map-js: ^1.2.2
