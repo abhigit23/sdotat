@@ -154,6 +154,7 @@ Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so
 - Content is always rendered through React's text-escaping; the only `dangerouslySetInnerHTML` usages are two small nonce'd inline `<head>` scripts (theme init and the `ld+json` structured data).
 - The XSS defense is the strict CSP: `nonce` + `strict-dynamic`, no `unsafe-inline`/`unsafe-eval` in production, `script-src-attr 'none'`.
 - Uploaded MIME types are never trusted for serving: downloads are `application/octet-stream` with `Content-Security-Policy: default-src 'none'; sandbox`.
+- API responses (`/api/*`) get their security headers from `next.config.ts` rather than the proxy, at no function cost: `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; sandbox`, `nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and `Cross-Origin-Resource-Policy: same-origin`.
 - HSTS is not set by the app; Vercel's edge adds it on deployed domains.
 
 ## Deployment (Vercel)
