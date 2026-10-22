@@ -1,7 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { checkPageLimit } from "@/lib/rate-limit";
 
-export function proxy(request: NextRequest) {
+/** A paste page, `/<code>` (see isValidCode). */
+const PASTE_PAGE = /^\/[0-9A-Za-z]{6}$/;
+
+export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
@@ -34,6 +38,22 @@ export function proxy(request: NextRequest) {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Resource-Policy": "same-origin",
   };
+
+  // Paste pages tell anyone whether a code exists and each costs a function
+  // run plus a database query, so they're rate limited like the read APIs.
+  if (PASTE_PAGE.test(request.nextUrl.pathname)) {
+    const retryAfter = await checkPageLimit(request);
+    if (retryAfter !== null) {
+      return new NextResponse("Too many requests. Please slow down.", {
+        status: 429,
+        headers: {
+          ...securityHeaders,
+          "Content-Type": "text/plain; charset=utf-8",
+          "Retry-After": String(retryAfter),
+        },
+      });
+    }
+  }
 
   const response = NextResponse.next({
     request: {

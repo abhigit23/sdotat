@@ -106,6 +106,41 @@ export async function checkReadLimit(
   return { result: { success, limit, remaining }, active: true };
 }
 
+let pageLimiter: Ratelimit | null = null;
+
+function getPageLimiter(): Ratelimit | null {
+  const r = getRedis();
+  if (!r) return null;
+  if (!pageLimiter) {
+    // Looser than reads: opening a paste page only says whether the code
+    // exists, but each one costs a function run and a database query.
+    pageLimiter = new Ratelimit({
+      redis: r,
+      limiter: Ratelimit.slidingWindow(120, "60 s"),
+      prefix: "rl:page",
+      analytics: false,
+    });
+  }
+  return pageLimiter;
+}
+
+/**
+ * Enforces the paste page (`/[code]`) rate limit. Returns seconds until the
+ * client may retry, or null if the request is allowed. Allows everything when
+ * Redis isn't configured, and fails open if Redis errors: a page view reveals
+ * no content, so availability wins.
+ */
+export async function checkPageLimit(req: NextRequest): Promise<number | null> {
+  const limiter = getPageLimiter();
+  if (!limiter) return null;
+  try {
+    const { success, reset } = await limiter.limit(clientId(req));
+    return success ? null : Math.max(1, Math.ceil((reset - Date.now()) / 1000));
+  } catch {
+    return null;
+  }
+}
+
 function getUploadLimiter(): Ratelimit | null {
   const r = getRedis();
   if (!r) return null;
