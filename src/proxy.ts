@@ -5,6 +5,19 @@ import { checkPageLimit } from "@/lib/rate-limit";
 /** A paste page, `/<code>` (see isValidCode). */
 const PASTE_PAGE = /^\/[0-9A-Za-z]{6}$/;
 
+/**
+ * Origin of this deployment's private Blob store, which serves the presigned
+ * attachment downloads. The store ID is the public part of the read-write
+ * token (`vercel_blob_rw_<storeId>_<secret>`); the secret never leaves here.
+ * Null when Blob isn't configured (attachments are disabled then).
+ */
+const BLOB_STORE_ORIGIN = (() => {
+  const storeId = process.env.BLOB_READ_WRITE_TOKEN?.split("_")[3];
+  return storeId && /^[A-Za-z0-9]+$/.test(storeId)
+    ? `https://${storeId.toLowerCase()}.private.blob.vercel-storage.com`
+    : null;
+})();
+
 export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
@@ -16,9 +29,9 @@ export async function proxy(request: NextRequest) {
     `style-src 'self' ${isDev ? "'unsafe-inline'" : `'nonce-${nonce}'`}`,
     "img-src 'self' blob: data:",
     "font-src 'self'",
-    // vercel.com: Blob uploads. *.private.blob.vercel-storage.com: attachment
-    // downloads via presigned URLs (encrypted; decrypted in the browser).
-    "connect-src 'self' blob: https://vercel.com https://*.private.blob.vercel-storage.com",
+    // vercel.com: Blob uploads. The store origin: attachment downloads via
+    // presigned URLs (encrypted; decrypted in the browser).
+    `connect-src 'self' blob: https://vercel.com${BLOB_STORE_ORIGIN ? ` ${BLOB_STORE_ORIGIN}` : ""}`,
     "media-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
