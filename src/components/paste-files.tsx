@@ -30,6 +30,8 @@ type Props = {
   contentKey?: string;
   /** Whether the paste is password protected (the route then needs the key). */
   passwordProtected?: boolean;
+  /** Text is shown above, so the list takes a fixed share of the height. */
+  shareHeight?: boolean;
 };
 
 const DOWNLOAD_CONCURRENCY = 3;
@@ -72,6 +74,7 @@ export default function PasteFiles({
   attachments,
   contentKey,
   passwordProtected = false,
+  shareHeight = false,
 }: Props) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -255,12 +258,16 @@ export default function PasteFiles({
   const totalSize = attachments.reduce((sum, a) => sum + a.size, 0);
 
   return (
-    // Takes part in the page's one-screen layout: grows to show every file
-    // that fits and only scrolls when the page runs out of room. The text box
-    // shrinks 4x faster (PasteContent), so a long paste mostly scrolls in its
-    // own box rather than squeezing the file list. (Shrink factors stay >= 1:
-    // a lone item with a factor below 1 absorbs only that share of overflow.)
-    <div className="mt-3 flex min-h-0 w-full flex-col short:mt-2">
+    // Takes part in the page's one-screen layout. Next to text it never
+    // shrinks: the list gets up to 20% of the viewport (scrolling past that)
+    // and the text box takes the rest. Flex shrink is weighted by size, so
+    // letting both shrink made a long paste squeeze even a single file row.
+    // Without text, the list fills the page and scrolls only when it runs out.
+    <div
+      className={`mt-3 flex w-full flex-col short:mt-2 ${
+        shareHeight ? "shrink-0" : "min-h-0"
+      }`}
+    >
       <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 short:mb-1">
         <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
           Attachments ({attachments.length})
@@ -296,8 +303,12 @@ export default function PasteFiles({
           {error}
         </p>
       )}
-      {/* Scrolls only once the list outgrows the space left on the page. */}
-      <ul className="flex min-h-0 flex-col gap-2 overflow-y-auto">
+      {/* Scrolls only once the list outgrows its share of the page. */}
+      <ul
+        className={`flex min-h-0 flex-col gap-2 overflow-y-auto ${
+          shareHeight ? "max-h-[20dvh]" : ""
+        }`}
+      >
         {attachments.map((a) => (
           <li key={a.id} className="relative shrink-0 overflow-hidden rounded-md">
             <button

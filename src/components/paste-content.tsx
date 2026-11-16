@@ -141,9 +141,9 @@ export default function PasteContent({
   const textClasses = wrap
     ? "whitespace-pre-wrap wrap-break-word"
     : "whitespace-pre";
-  // Shrinks to whatever height is left on the page and scrolls inside. Shrinks
-  // 4x faster than the attachment list, so long text gives way first. When
-  // expanded it grows to fill the window instead.
+  // Shrinks to whatever height is left on the page (after the attachment
+  // list's capped share, see PasteFiles) and scrolls inside. When expanded it
+  // grows to fill the window instead.
   const boxClasses = `min-h-16 w-full shrink-[4] overflow-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-left font-mono text-sm leading-relaxed sm:p-6 short:p-3 dark:border-zinc-800 dark:bg-zinc-950 ${
     expanded ? "flex-1" : ""
   }`;
@@ -354,6 +354,7 @@ export default function PasteContent({
         attachments={attachments}
         contentKey={contentKey}
         passwordProtected={passwordProtected}
+        shareHeight={hasText}
       />
     </div>
   );
