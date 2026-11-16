@@ -41,7 +41,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 pnpm install
 ```
 
-> This repo uses **pnpm** as the package manager and bleeding-edge tooling (TypeScript 7, ESLint 10). `pnpm lint` currently fails because `typescript-eslint` does not support TS 7 yet; typecheck (`pnpm build` / `npx tsc --noEmit`) is the source of truth.
+> This repo uses **pnpm** as the package manager and bleeding-edge tooling (TypeScript 7, ESLint 10). `pnpm lint` currently fails because `typescript-eslint` does not support TS 7 yet; typecheck (`pnpm build` / `pnpm typecheck`) is the source of truth.
 
 ### 2. Configure environment
 
@@ -63,11 +63,11 @@ CRON_SECRET=                # guards the cleanup endpoint
 ### 3. Migrate the database
 
 ```bash
-pnpm drizzle-kit generate   # create a migration from schema changes
-pnpm drizzle-kit migrate    # apply migrations to the DB
+pnpm db:generate   # create a migration from schema changes
+pnpm db:migrate    # apply migrations to the DB
 ```
 
-> `drizzle-kit` does not read `.env.local` — set `POSTGRES_URL_NON_POOLING` (or `POSTGRES_URL`) in the shell before running `pnpm drizzle-kit migrate`.
+> `drizzle-kit` does not read `.env.local` — set `POSTGRES_URL_NON_POOLING` (or `POSTGRES_URL`) in the shell before running `pnpm db:migrate`.
 
 ### 4. Run
 
@@ -85,10 +85,10 @@ Open http://localhost:3000.
 | `pnpm build` | Production build (includes typecheck) |
 | `pnpm start` | Start production server |
 | `pnpm lint` | ESLint (fails until `typescript-eslint` supports TS 7) |
-| `npx tsc --noEmit` | Type-check only |
-| `pnpm drizzle-kit generate` | Generate DB migration |
-| `pnpm drizzle-kit migrate` | Apply DB migrations |
-| `pnpm drizzle-kit push` | Dev-only: push schema without migration |
+| `pnpm typecheck` | Type-check only |
+| `pnpm db:generate` | Generate DB migration |
+| `pnpm db:migrate` | Apply DB migrations |
+| `pnpm db:push` | Dev-only: push schema without migration |
 
 ## Architecture
 
