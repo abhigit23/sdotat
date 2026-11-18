@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ThemeToggle from "@/components/theme-toggle";
+import Analytics from "@/components/analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -106,6 +107,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             Source on GitHub
           </a>
         </footer>
+        <Analytics />
       </body>
     </html>
   );
