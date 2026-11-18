@@ -302,7 +302,7 @@ export default function PasteContent({
             <CopyButton
               text={content}
               onCopy={() => setSaved(true)}
-              className="h-[34px]"
+              className="h-8.5"
             />
             <button
               ref={expandButtonRef}
