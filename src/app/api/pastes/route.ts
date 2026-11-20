@@ -20,6 +20,7 @@ import {
 import {
   checkCreateLimit,
   getUploadSizes,
+  releaseTextBytes,
   reserveTextBytes,
 } from "@/lib/rate-limit";
 
@@ -166,7 +167,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     console.error("createPaste failed", describeDbError(e));
-    await discardUploads();
+    await Promise.all([
+      discardUploads(),
+      releaseTextBytes(req, ciphertext.length),
+    ]);
     return NextResponse.json({ error: "Failed to create paste" }, { status: 500 });
   }
 
@@ -188,6 +192,7 @@ export async function POST(req: NextRequest) {
       );
     } catch (e) {
       await deletePaste(paste.code);
+      await releaseTextBytes(req, ciphertext.length);
       // A unique violation on blob_path means a file already belongs to
       // another paste; deleting it would break that paste. Leave any genuinely
       // unreferenced blobs to the orphan sweep.

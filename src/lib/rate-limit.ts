@@ -354,6 +354,27 @@ export async function reserveTextBytes(
 }
 
 /**
+ * Returns bytes reserved by reserveTextBytes() when the paste wasn't stored
+ * after all, so a failed create doesn't count against the quota. Best effort:
+ * a failure here only leaves the quota slightly over-counted.
+ */
+export async function releaseTextBytes(
+  req: NextRequest,
+  bytes: number
+): Promise<void> {
+  const r = getRedis();
+  if (!r || bytes <= 0) return;
+  const day = utcDay();
+  await r
+    .eval(
+      "for _, key in ipairs(KEYS) do if redis.call('EXISTS', key) == 1 then redis.call('DECRBY', key, ARGV[1]) end end return 1",
+      [`tq:${clientId(req)}:${day}`, `tq:all:${day}`],
+      [bytes]
+    )
+    .catch(() => {});
+}
+
+/**
  * Declared sizes for the given token pathnames, in one Redis round trip;
  * null entries were never recorded or have expired. Returns null when Redis
  * isn't configured.
