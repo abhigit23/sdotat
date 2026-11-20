@@ -136,7 +136,7 @@ export async function createPaste(
       files: fileMeta,
     }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, error: data.error ?? "Failed to create paste" };
 
   saveDeleteToken(data.code, data.deleteUrl.split("#delete=")[1], data.expiresAt);

@@ -26,7 +26,7 @@ export default function PasteReveal({ code, burnAfterRead }: Props) {
       const res = await fetch(`/api/pastes/${code}/reveal`, {
         method: "POST",
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setView({ status: "error", message: data.error ?? "Failed to load" });
         setLoading(false);
