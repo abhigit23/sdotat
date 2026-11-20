@@ -3,8 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
   getDeleteTokenHash,
-  deletePaste,
-  deleteAttachmentsBlobs,
+  deletePasteWithBlobs,
 } from "@/lib/paste-service";
 import { hashDeleteToken } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
@@ -57,11 +56,7 @@ export async function POST(
     return NextResponse.json({ error: "Invalid delete link" }, { status: 403 });
   }
 
-  // Blobs first: their paths live in the attachment rows the paste delete
-  // cascades away. Anything a failed blob delete leaves behind is swept by the
-  // daily orphan cleanup.
-  await deleteAttachmentsBlobs(code);
-  await deletePaste(code);
+  await deletePasteWithBlobs(code);
 
   return NextResponse.json({ ok: true });
 }

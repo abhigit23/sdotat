@@ -1,32 +1,23 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import {
-  getPasteByCode,
-  deletePaste,
-  incrementViews,
-  claimPasteForView,
-  getAttachmentsByCode,
-  deleteAttachmentsBlobs,
-} from "@/lib/paste-service";
-import { unwrapKey, decryptPasteText } from "@/lib/crypto";
-import { toAttachmentViews } from "@/lib/attachment-views";
+import { getPasteByCode } from "@/lib/paste-service";
+import { unwrapKey } from "@/lib/crypto";
+import { revealResponse, unavailableResponse } from "@/lib/paste-view";
 import { isValidCode } from "@/lib/ids";
 import {
   checkReadLimit,
-  isPasswordLocked,
-  recordPasswordFailure,
+  beginPasswordAttempt,
+  refundPasswordAttempt,
   PASSWORD_LOCKED_MESSAGE,
 } from "@/lib/rate-limit";
+import { contentKeySchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
-const verifySchema = z.object({
-  contentKey: z
-    .string()
-    .refine((v) => Buffer.from(v, "base64").length === 32, "invalid content key"),
-});
+const verifySchema = z.object({ contentKey: contentKeySchema });
 
+/** Unlocks a password-protected paste with the browser-derived key. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ code: string }> }
@@ -55,31 +46,14 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Expired -> clean up in the background + 404
-  if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
-    after(async () => {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
-    });
-    return NextResponse.json({ error: "Expired" }, { status: 404 });
-  }
-
-  // Burn-after-read already consumed -> gone
-  if (paste.burnAfterRead && paste.consumed) {
-    return NextResponse.json({ error: "Gone" }, { status: 410 });
-  }
+  const unavailable = unavailableResponse(code, paste);
+  if (unavailable) return unavailable;
 
   if (!paste.salt) {
     return NextResponse.json(
       { error: "Not a password-protected paste" },
       { status: 400 }
     );
-  }
-
-  // Checked before comparing, so a locked paste rejects even the right
-  // password until the window ends.
-  if (await isPasswordLocked(code, req)) {
-    return NextResponse.json({ error: PASSWORD_LOCKED_MESSAGE }, { status: 429 });
   }
 
   const provided = Buffer.from(parsed.data.contentKey, "base64");
@@ -89,58 +63,23 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Invalid paste" }, { status: 500 });
   }
+
+  // Checked before comparing, so a locked paste rejects even the right
+  // password until the window ends.
+  if (!(await beginPasswordAttempt(code, req))) {
+    return NextResponse.json({ error: PASSWORD_LOCKED_MESSAGE }, { status: 429 });
+  }
   if (
     contentKey.length !== provided.length ||
     !timingSafeEqual(contentKey, provided)
   ) {
-    await recordPasswordFailure(code, req);
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
+  // Off the response path: the attempt was already let through.
+  after(() => refundPasswordAttempt(code, req));
 
-  // Fetch attachments in parallel with decryption.
-  const attachmentsPromise = getAttachmentsByCode(code);
-
-  let plaintext: string;
-  try {
-    plaintext = decryptPasteText(contentKey, {
-      ciphertext: Buffer.from(paste.ciphertext),
-      iv: Buffer.from(paste.iv),
-      authTag: Buffer.from(paste.authTag),
-      compression: paste.compression,
-    });
-  } catch {
-    return NextResponse.json({ error: "Invalid password" }, { status: 401 });
-  }
-
-  const attachments = await attachmentsPromise;
-
-  const isBurn = paste.burnAfterRead;
-  if (isBurn) {
-    // Atomically mark the paste consumed so a concurrent unlock cannot read
-    // it again; the physical delete is deferred until after the response.
-    const claimed = await claimPasteForView(code);
-    if (!claimed) {
-      return NextResponse.json({ error: "Gone" }, { status: 410 });
-    }
-  }
-
-  after(async () => {
-    await incrementViews(code);
-    if (isBurn) {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
-    }
+  return revealResponse(code, paste, contentKey, {
+    includeKey: false,
+    decryptError: { error: "Invalid password", status: 401 },
   });
-
-  return NextResponse.json({
-    content: plaintext,
-    burnAfterRead: isBurn,
-    expiresAt: paste.expiresAt?.toISOString() ?? null,
-    views: paste.views + 1,
-    attachments: await toAttachmentViews(
-      contentKey,
-      attachments,
-      paste.expiresAt
-    ),
-  }, { headers: { "Cache-Control": "no-store" } });
 }

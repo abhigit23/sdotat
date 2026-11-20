@@ -5,19 +5,18 @@ import { createDecipheriv, timingSafeEqual } from "node:crypto";
 import { createInflate } from "node:zlib";
 import {
   getAttachmentForDownload,
-  deletePaste,
   claimPasteForView,
-  deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
+import { deleteAfterResponse, unavailableResponse } from "@/lib/paste-view";
 import { unwrapKey, openAttachmentMeta } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
 import {
   checkReadLimit,
-  isPasswordLocked,
-  recordPasswordFailure,
+  beginPasswordAttempt,
+  refundPasswordAttempt,
   PASSWORD_LOCKED_MESSAGE,
 } from "@/lib/rate-limit";
-import { ATTACHMENT_ID } from "@/lib/validation";
+import { ATTACHMENT_ID, contentKeySchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,28 +76,19 @@ export async function GET(
   }
   const { attachment } = row;
 
-  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
-    after(async () => {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
-    });
-    return NextResponse.json({ error: "Expired" }, { status: 404 });
-  }
-
-  if (row.burnAfterRead && row.consumed) {
-    return NextResponse.json({ error: "Gone" }, { status: 410 });
-  }
+  const unavailable = unavailableResponse(code, row);
+  if (unavailable) return unavailable;
 
   let contentKey: Buffer;
   try {
     contentKey = unwrapKey(Buffer.from(row.keyWrapped));
     if (row.salt) {
       const providedRaw = req.headers.get("x-paste-key");
-      if (!providedRaw) {
+      if (!providedRaw || !contentKeySchema.safeParse(providedRaw).success) {
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
       // Same per-paste lock as /verify, or guesses could be made here instead.
-      if (await isPasswordLocked(code, req)) {
+      if (!(await beginPasswordAttempt(code, req))) {
         return NextResponse.json(
           { error: PASSWORD_LOCKED_MESSAGE },
           { status: 429 }
@@ -109,14 +99,35 @@ export async function GET(
         contentKey.length !== provided.length ||
         !timingSafeEqual(contentKey, provided)
       ) {
-        await recordPasswordFailure(code, req);
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
+      // Off the response path: the attempt was already let through.
+      after(() => refundPasswordAttempt(code, req));
     }
   } catch {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 
+  let filename: string;
+  try {
+    ({ filename } = openAttachmentMeta(contentKey, attachment));
+  } catch {
+    return NextResponse.json({ error: "Decryption failed" }, { status: 500 });
+  }
+
+  if (row.burnAfterRead) {
+    // Burn-after-read pastes cannot have attachments, but if this ever
+    // happens, atomically consume the paste and delete it after the
+    // streamed response finishes instead of blocking the download.
+    const claimed = await claimPasteForView(code);
+    if (!claimed) {
+      return NextResponse.json({ error: "Gone" }, { status: 410 });
+    }
+    deleteAfterResponse(code);
+  }
+
+  // Every check is done before the blob is opened, so no early return can
+  // leave its stream dangling.
   const blob = await get(attachment.blobPath, { access: "private" });
   if (!blob || !blob.stream) {
     // Missing from the store (e.g. the creator never finished uploading it):
@@ -125,16 +136,20 @@ export async function GET(
   }
   const blobStream: ReadableStream = blob.stream;
 
-  const decipher = createDecipheriv(
-    ALGO,
-    contentKey,
-    Buffer.from(attachment.iv)
-  );
-  decipher.setAuthTag(Buffer.from(attachment.authTag));
-
   try {
+    const decipher = createDecipheriv(
+      ALGO,
+      contentKey,
+      Buffer.from(attachment.iv)
+    );
+    decipher.setAuthTag(Buffer.from(attachment.authTag));
+
     // pipeline (unlike .pipe) destroys every stage on error, so a failed
     // auth tag or an oversized file aborts the response instead of hanging.
+    // GCM only checks the tag at the end, so plaintext is streamed before it
+    // is authenticated: a tampered file shows up as an aborted download, not
+    // an error status. (The browser's direct-download path decrypts whole
+    // files with WebCrypto and never sees unauthenticated bytes.)
     const source = Readable.fromWeb(
       blobStream as Parameters<typeof Readable.fromWeb>[0]
     );
@@ -145,25 +160,10 @@ export async function GET(
         ? pipeline(source, decipher, createInflate(), limit, onDone)
         : pipeline(source, decipher, limit, onDone);
 
-    if (row.burnAfterRead) {
-      // Burn-after-read pastes cannot have attachments, but if this ever
-      // happens, atomically consume the paste and delete it after the
-      // streamed response finishes instead of blocking the download.
-      const claimed = await claimPasteForView(code);
-      if (!claimed) {
-        return NextResponse.json({ error: "Gone" }, { status: 410 });
-      }
-      after(async () => {
-        await deleteAttachmentsBlobs(code);
-        await deletePaste(code);
-      });
-    }
-
     // The stored MIME type is uploader-supplied, so never serve it from this
     // origin: the client already knows the real type from the paste metadata.
     const headers = new Headers();
     headers.set("Content-Type", "application/octet-stream");
-    const { filename } = openAttachmentMeta(contentKey, attachment);
     headers.set("Content-Disposition", contentDisposition(filename));
     headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
     headers.set("Cache-Control", "no-store");

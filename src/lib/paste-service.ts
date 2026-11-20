@@ -2,18 +2,7 @@ import { eq, sql, inArray, and } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { Paste, NewPaste, Attachment, NewAttachment } from "@/db/schema";
 import { shortId } from "./ids";
-
-const EXPIRY_MS: Record<string, number> = {
-  "5min": 5 * 60 * 1000,
-  "10min": 10 * 60 * 1000,
-  "30min": 30 * 60 * 1000,
-  "1h": 60 * 60 * 1000,
-  "3h": 3 * 60 * 60 * 1000,
-  "6h": 6 * 60 * 60 * 1000,
-  "12h": 12 * 60 * 60 * 1000,
-  "1d": 24 * 60 * 60 * 1000,
-  "3d": 3 * 24 * 60 * 60 * 1000,
-};
+import { expiryMs } from "./expiry";
 
 /**
  * Postgres error code (e.g. "23505") from a query error. Drizzle wraps driver
@@ -47,7 +36,7 @@ export type CreatePasteArgs = {
 };
 
 export function getExpiryDate(expiresIn: string): Date | null {
-  const ms = EXPIRY_MS[expiresIn];
+  const ms = expiryMs(expiresIn);
   return ms ? new Date(Date.now() + ms) : null;
 }
 
@@ -346,4 +335,15 @@ export async function deleteAttachmentsBlobs(code: string): Promise<number> {
   if (!db) return 0;
   const attachments = await getAttachmentsByCode(code);
   return deleteBlobs(attachments.map((a) => a.blobPath));
+}
+
+/**
+ * Deletes a paste with its attachment blobs. Blobs go first, since their
+ * paths live in the attachment rows the paste delete cascades away; anything
+ * a failed blob delete leaves behind is caught by the daily orphan sweep.
+ * Returns true if the paste row was removed.
+ */
+export async function deletePasteWithBlobs(code: string): Promise<boolean> {
+  await deleteAttachmentsBlobs(code);
+  return deletePaste(code);
 }

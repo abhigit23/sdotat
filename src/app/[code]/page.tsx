@@ -1,13 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { after } from "next/server";
 import { ArrowLeft } from "lucide-react";
-import {
-  getPasteGateByCode,
-  deletePaste,
-  deleteAttachmentsBlobs,
-} from "@/lib/paste-service";
+import { getPasteGateByCode } from "@/lib/paste-service";
+import { deleteAfterResponse, isExpired } from "@/lib/paste-view";
 import { isValidCode } from "@/lib/ids";
 import PasswordGate from "@/components/password-gate";
 import PasteReveal from "@/components/paste-reveal";
@@ -55,11 +51,8 @@ export default async function PastePage({
   const paste = isValidCode(code) ? await getPasteGateByCode(code) : null;
   if (!paste) notFound();
 
-  if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
-    after(async () => {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
-    });
+  if (isExpired(paste)) {
+    deleteAfterResponse(code);
     notFound();
   }
 

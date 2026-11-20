@@ -21,7 +21,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 
 | Layer | Choice |
 |---|---|
-| Framework | Next.js 16.3.3 (App Router), TypeScript |
+| Framework | Next.js 16.3.8 (App Router), TypeScript |
 | UI | Tailwind CSS v4, Geist fonts (`next/font`), lucide-react icons |
 | ORM | Drizzle (+ postgres.js driver, drizzle-kit migrations) |
 | Database | PostgreSQL on Supabase (RLS enabled, Data API grants revoked) |
@@ -41,7 +41,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 pnpm install
 ```
 
-> This repo uses **pnpm** as the package manager and bleeding-edge tooling (TypeScript 7, ESLint 10). `pnpm lint` currently fails because `typescript-eslint` does not support TS 7 yet; typecheck (`pnpm build` / `pnpm typecheck`) is the source of truth.
+> This repo uses **pnpm** as the package manager and bleeding-edge tooling (TypeScript 7, ESLint 10). `tsc` is TypeScript 7 (aliased as `@typescript/native`), while the `typescript` package is the TS 6 compatibility build (`@typescript/typescript6`) so `typescript-eslint`, which has no TS 7 API yet, keeps working. Drop the alias once `typescript-eslint` supports TS 7.1+.
 
 ### 2. Configure environment
 
@@ -84,7 +84,8 @@ Open http://localhost:3000.
 | `pnpm dev` | Start dev server |
 | `pnpm build` | Production build (includes typecheck) |
 | `pnpm start` | Start production server |
-| `pnpm lint` | ESLint (fails until `typescript-eslint` supports TS 7) |
+| `pnpm lint` | ESLint |
+| `pnpm test` | Unit tests (Vitest) |
 | `pnpm typecheck` | Type-check only |
 | `pnpm db:generate` | Generate DB migration |
 | `pnpm db:migrate` | Apply DB migrations |
@@ -137,7 +138,7 @@ Both tables have row-level security enabled, and the Supabase `anon` / `authenti
 - Upload tokens (one per file): 30 / 10 min per IP
 - Read (reveal, verify, file downloads): 60 / 60 s per IP
 - Paste pages (`/[code]`): 120 / 60 s per IP, enforced in the proxy (a page only reveals whether a code exists, but each costs a function run and a query). Fails open if Redis is unreachable.
-- Password attempts: 10 failures per paste per IP per hour, and 50 per paste per hour across all IPs, counted across `/verify` and file downloads. Someone guessing locks only their own IP, so they can't lock out the real recipient; the shared limit still bounds guessing spread over many IPs. Once locked, even the correct password gets `429 Too many attempts. Try again later.` (no count or `Retry-After` is revealed) until the window ends.
+- Password attempts: 10 failures per paste per IP per hour, and 50 per paste per hour across all IPs, counted across `/verify` and file downloads. Each attempt is counted atomically before the key is compared (and refunded if it was right), so concurrent guesses can't race past the limit. One guessing IP locks only itself; the shared limit bounds guessing spread over many IPs, but it also means guesses from several IPs can lock out the real recipient for the rest of the hour. Once locked, even the correct password gets `429 Too many attempts. Try again later.` (no count or `Retry-After` is revealed) until the window ends.
 - Upload quota: 300 MB of uploads per IP and 300 MB across all clients per UTC day (pastes live up to 3 days, so the Blob store stays under the 1 GB Hobby limit). The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger. Each token stores one blob at exactly `files/<uuid>` (no random suffix, no overwrite), so a token can't be reused to upload again on a single quota charge.
 - Per-paste file size check: the declared size is also recorded in Redis per upload path (3 h, one token per path), so `POST /api/pastes` checks the real 100 MB total with one Redis lookup. Files without a record (no Redis, or expired) fall back to a Blob `head()` per file.
 
@@ -150,6 +151,7 @@ Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so
 ## Security notes
 
 - This is a **server-side** encryption model: the server holds the master key and can decrypt content. It is NOT zero-knowledge like PrivateBin — that trade-off buys short, typable URLs.
+- Passwords are **access control, not end-to-end encryption**. The PBKDF2-derived key is the content key, and it is stored wrapped with the master key, so anyone holding both the database and `PASTE_MASTER_KEY` can read password-protected pastes without guessing the password. The password (and the per-paste attempt limits) only stops people who have the link but not that access.
 - Ciphertext is encrypted at rest with a per-paste key that is itself wrapped by a master key stored only in env. File blobs (and their names) are encrypted client-side before they ever reach object storage.
 - Content is always rendered through React's text-escaping; the only `dangerouslySetInnerHTML` usages are two small nonce'd inline `<head>` scripts (theme init and the `ld+json` structured data).
 - The XSS defense is the strict CSP: `nonce` + `strict-dynamic`, no `unsafe-inline`/`unsafe-eval` in production, `script-src-attr 'none'`.

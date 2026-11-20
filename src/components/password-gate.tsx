@@ -44,7 +44,7 @@ export default function PasswordGate({ code, salt }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contentKey: key }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setView({ status: "error", message: data.error ?? "Failed to unlock" });
         setLoading(false);
