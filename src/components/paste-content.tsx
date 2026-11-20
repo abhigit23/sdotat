@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Clock,
   Download,
@@ -16,6 +23,12 @@ import CopyButton from "./copy-button";
 import PasteFiles, { type AttachmentMeta } from "./paste-files";
 import { saveBlob } from "@/lib/download";
 import { formatTimeUntil } from "@/lib/format";
+import {
+  LANGUAGES,
+  MAX_HIGHLIGHT_CHARS,
+  languageLabel,
+  type LanguageChoice,
+} from "@/lib/languages";
 
 type Props = {
   burn: boolean;
@@ -39,6 +52,21 @@ const MAX_NUMBERED_LINES = 5000;
 const TOOL_BUTTON =
   "inline-flex h-[34px] items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 max-sm:w-[34px] max-sm:justify-center max-sm:px-0 dark:hover:bg-zinc-800";
 
+// The language picker: a native select styled like the tool buttons. Not a
+// fixed square on phones like the others, since it shows its value.
+const LANGUAGE_SELECT =
+  "h-[34px] max-w-36 rounded-md border border-zinc-300 bg-white px-2 text-sm font-medium transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800";
+
+/** Highlighted text, tagged with what it was made from so stale results are ignored. */
+type HighlightResult = {
+  content: string;
+  choice: LanguageChoice;
+  /** The language used; for "auto", what was detected (null: none, so plain). */
+  language: string | null;
+  all: ReactNode;
+  lines: ReactNode[];
+};
+
 /** History entry marker for the expanded view, so Back closes it. */
 const EXPANDED_STATE = "paste-expanded";
 
@@ -60,6 +88,10 @@ export default function PasteContent({
       : "Shared files";
   const [wrap, setWrap] = useState(true);
   const [lineNumbers, setLineNumbers] = useState(false);
+  // Plain by default: detection can't reliably tell code from prose, so text
+  // is only coloured when the reader picks a language (or asks to detect).
+  const [language, setLanguage] = useState<LanguageChoice>("plain");
+  const [highlighted, setHighlighted] = useState<HighlightResult | null>(null);
   // Set once the user has copied or downloaded the text of a burned paste.
   const [saved, setSaved] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -71,6 +103,40 @@ export default function PasteContent({
 
   const lines = useMemo(() => (hasText ? content.split("\n") : []), [content, hasText]);
   const canNumber = lines.length <= MAX_NUMBERED_LINES;
+  const canHighlight = hasText && content.length <= MAX_HIGHLIGHT_CHARS;
+
+  // The highlighter (and its grammars) loads only once a language is picked.
+  useEffect(() => {
+    if (language === "plain" || !canHighlight) return;
+    let cancelled = false;
+    import("@/lib/highlight")
+      .then(({ detectLanguage, highlight }) => {
+        if (cancelled) return;
+        const lang = language === "auto" ? detectLanguage(content) : language;
+        const result = lang ? highlight(content, lang) : { all: null, lines: [] };
+        if (!cancelled) {
+          setHighlighted({ content, choice: language, language: lang, ...result });
+        }
+      })
+      .catch(() => {
+        // Grammar chunk failed to load (offline?): the text stays plain.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [language, content, canHighlight]);
+
+  // Only a result for the current text and choice counts; while another is
+  // being made (or for "plain") the text shows unhighlighted.
+  const current =
+    language !== "plain" &&
+    canHighlight &&
+    highlighted?.content === content &&
+    highlighted.choice === language
+      ? highlighted
+      : null;
+  const hl = current?.language ? current : null;
+  const highlightPending = language !== "plain" && canHighlight && !current;
 
   useEffect(() => {
     if (!expiresAt || burn) return;
@@ -254,6 +320,33 @@ export default function PasteContent({
               expanded ? "max-sm:justify-start" : ""
             }`}
           >
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as LanguageChoice)}
+              disabled={!canHighlight}
+              aria-label="Syntax highlighting language"
+              aria-busy={highlightPending || undefined}
+              title={
+                canHighlight
+                  ? "Syntax highlighting"
+                  : `Highlighting is off for pastes over ${MAX_HIGHLIGHT_CHARS / 1000}K characters`
+              }
+              className={LANGUAGE_SELECT}
+            >
+              <option value="plain">Plain text</option>
+              <option value="auto">
+                {current && language === "auto"
+                  ? current.language
+                    ? `Detected: ${languageLabel(current.language)}`
+                    : "Detected: none"
+                  : "Detect language"}
+              </option>
+              {LANGUAGES.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={() => setWrap((w) => !w)}
@@ -340,13 +433,13 @@ export default function PasteContent({
                   {i + 1}
                 </span>
                 <span className={`min-h-lh min-w-0 flex-1 ${textClasses}`}>
-                  {line}
+                  {hl ? hl.lines[i] : line}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <pre className={`${boxClasses} ${textClasses}`}>{content}</pre>
+          <pre className={`${boxClasses} ${textClasses}`}>{hl ? hl.all : content}</pre>
         ))}
       </div>
       <PasteFiles

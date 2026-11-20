@@ -21,6 +21,8 @@
     "@vercel/blob": "^2.9.0",
     "@vercel/speed-insights": "^2.1.0",
     "drizzle-orm": "^0.45.4",
+    "hast-util-to-jsx-runtime": "^2.3.7",
+    "lowlight": "^3.3.0",
     "lucide-react": "^1.76.0",
     "nanoid": "^6.0.2",
     "next": "16.4.6",
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",
+    "@types/hast": "^3.0.5",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
