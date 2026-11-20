@@ -56,6 +56,7 @@ KV_REST_API_URL=            # optional — rate limiting (Vercel KV / Upstash)
 KV_REST_API_TOKEN=
 BLOB_READ_WRITE_TOKEN=      # optional — file attachments (Vercel Blob store)
 CRON_SECRET=                # guards the cleanup endpoint
+TRUSTED_IP_HEADER=          # self-hosting only — header your proxy sets to the client IP
 ```
 
 > **PASTE_MASTER_KEY must stay constant** across deploys, or stored pastes can no longer be decrypted. Keep it secret.
@@ -142,7 +143,7 @@ Both tables have row-level security enabled, and the Supabase `anon` / `authenti
 - Upload quota: 300 MB of uploads per IP and 300 MB across all clients per UTC day (pastes live up to 3 days, so the Blob store stays under the 1 GB Hobby limit). The client declares each encrypted file's size when requesting its upload token; the server counts it against the quota in Redis and issues a token capped at exactly that size, so Blob rejects anything larger. Each token stores one blob at exactly `files/<uuid>` (no random suffix, no overwrite), so a token can't be reused to upload again on a single quota charge.
 - Per-paste file size check: the declared size is also recorded in Redis per upload path (3 h, one token per path), so `POST /api/pastes` checks the real 100 MB total with one Redis lookup. Files without a record (no Redis, or expired) fall back to a Blob `head()` per file.
 
-Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so raw IPs are never sent to or stored in Redis. When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).
+Limits are keyed by an HMAC of the client IP (keyed from `PASTE_MASTER_KEY`), so raw IPs are never sent to or stored in Redis. The IP comes only from a header a proxy in front of the app overwrites, never from one a client could forge: `x-real-ip` on Vercel, or the header named in `TRUSTED_IP_HEADER` when self-hosting (e.g. `cf-connecting-ip`). Without either, all clients share one bucket, so limits get stricter rather than bypassable. When KV env vars are absent, rate limiting and the upload quota are disabled (fine for local dev).
 
 ### Cleanup
 

@@ -2,6 +2,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import type { NextRequest } from "next/server";
 import { createHash, createHmac } from "node:crypto";
+import { clientIp } from "./client-ip";
 
 const UPS_ENABLED =
   !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
@@ -57,13 +58,9 @@ let ipHashKey: Buffer | null = null;
  * Resolves a stable identifier from an incoming request: an HMAC of the client
  * IP, so raw IPs are never sent to or stored in Redis. Keyed by a value derived
  * from the master key, so the hashes can't be reversed by hashing every IP.
- * Falls back to a constant when headers are unavailable (unlikely in practice).
  */
-export function clientId(req: NextRequest): string {
-  const ip =
-    req.headers.get("x-real-ip") ??
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown";
+export function clientId(req: Pick<NextRequest, "headers">): string {
+  const ip = clientIp(req);
   ipHashKey ??= createHash("sha256")
     .update(`ip-hash:${process.env.PASTE_MASTER_KEY ?? ""}`)
     .digest();
