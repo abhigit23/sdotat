@@ -117,6 +117,29 @@ export async function GET(
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
 
+  let filename: string;
+  try {
+    ({ filename } = openAttachmentMeta(contentKey, attachment));
+  } catch {
+    return NextResponse.json({ error: "Decryption failed" }, { status: 500 });
+  }
+
+  if (row.burnAfterRead) {
+    // Burn-after-read pastes cannot have attachments, but if this ever
+    // happens, atomically consume the paste and delete it after the
+    // streamed response finishes instead of blocking the download.
+    const claimed = await claimPasteForView(code);
+    if (!claimed) {
+      return NextResponse.json({ error: "Gone" }, { status: 410 });
+    }
+    after(async () => {
+      await deleteAttachmentsBlobs(code);
+      await deletePaste(code);
+    });
+  }
+
+  // Every check is done before the blob is opened, so no early return can
+  // leave its stream dangling.
   const blob = await get(attachment.blobPath, { access: "private" });
   if (!blob || !blob.stream) {
     // Missing from the store (e.g. the creator never finished uploading it):
@@ -125,16 +148,20 @@ export async function GET(
   }
   const blobStream: ReadableStream = blob.stream;
 
-  const decipher = createDecipheriv(
-    ALGO,
-    contentKey,
-    Buffer.from(attachment.iv)
-  );
-  decipher.setAuthTag(Buffer.from(attachment.authTag));
-
   try {
+    const decipher = createDecipheriv(
+      ALGO,
+      contentKey,
+      Buffer.from(attachment.iv)
+    );
+    decipher.setAuthTag(Buffer.from(attachment.authTag));
+
     // pipeline (unlike .pipe) destroys every stage on error, so a failed
     // auth tag or an oversized file aborts the response instead of hanging.
+    // GCM only checks the tag at the end, so plaintext is streamed before it
+    // is authenticated: a tampered file shows up as an aborted download, not
+    // an error status. (The browser's direct-download path decrypts whole
+    // files with WebCrypto and never sees unauthenticated bytes.)
     const source = Readable.fromWeb(
       blobStream as Parameters<typeof Readable.fromWeb>[0]
     );
@@ -145,25 +172,10 @@ export async function GET(
         ? pipeline(source, decipher, createInflate(), limit, onDone)
         : pipeline(source, decipher, limit, onDone);
 
-    if (row.burnAfterRead) {
-      // Burn-after-read pastes cannot have attachments, but if this ever
-      // happens, atomically consume the paste and delete it after the
-      // streamed response finishes instead of blocking the download.
-      const claimed = await claimPasteForView(code);
-      if (!claimed) {
-        return NextResponse.json({ error: "Gone" }, { status: 410 });
-      }
-      after(async () => {
-        await deleteAttachmentsBlobs(code);
-        await deletePaste(code);
-      });
-    }
-
     // The stored MIME type is uploader-supplied, so never serve it from this
     // origin: the client already knows the real type from the paste metadata.
     const headers = new Headers();
     headers.set("Content-Type", "application/octet-stream");
-    const { filename } = openAttachmentMeta(contentKey, attachment);
     headers.set("Content-Disposition", contentDisposition(filename));
     headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
     headers.set("Cache-Control", "no-store");
