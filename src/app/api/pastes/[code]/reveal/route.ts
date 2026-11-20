@@ -86,10 +86,12 @@ export async function POST(
   }
 
   after(async () => {
-    await incrementViews(code);
+    // A burned paste is deleted, so counting its view is a wasted write.
     if (isBurn) {
       await deleteAttachmentsBlobs(code);
       await deletePaste(code);
+    } else {
+      await incrementViews(code);
     }
   });
 
