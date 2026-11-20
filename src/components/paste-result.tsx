@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Clock, Flame, Lock, QrCode as QrCodeIcon } from "lucide-react";
+import { Clock, Flame, Lock } from "lucide-react";
 import CopyButton from "./copy-button";
-import QrCode from "./qr-code";
+import QrButton from "./qr-button";
 import ShareButton from "./share-button";
 
 export type PasteResultData = {
@@ -26,7 +25,6 @@ export default function PasteResult({
   result: PasteResultData;
   onCreateAnother: () => void;
 }) {
-  const [showQr, setShowQr] = useState(false);
   return (
     <div className="mx-auto my-auto flex w-full max-w-md flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm sm:gap-5 sm:p-6 short:gap-3 short:p-3 tiny:max-w-2xl tiny:gap-2 tiny:p-2 dark:border-zinc-800 dark:bg-zinc-900">
       <h2 className="text-center text-lg font-semibold short:text-base tiny:sr-only">Your paste is ready!</h2>
@@ -38,34 +36,8 @@ export default function PasteResult({
         <div className="flex shrink-0 items-center justify-center gap-2">
           <ShareButton url={result.url} title="New paste on sdotat" />
           <CopyButton text={result.url} />
-          <button
-            type="button"
-            onClick={() => setShowQr((v) => !v)}
-            aria-expanded={showQr}
-            aria-controls="paste-qr"
-            title="Show a QR code to open the link on a phone"
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition hover:bg-zinc-50 dark:hover:bg-zinc-800 ${
-              showQr
-                ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300"
-                : "border-zinc-300 dark:border-zinc-700"
-            }`}
-          >
-            <QrCodeIcon size={14} aria-hidden />
-            QR
-          </button>
+          <QrButton url={result.url} />
         </div>
-        {showQr && (
-          <div id="paste-qr" className="flex flex-col items-center gap-1 pt-1">
-            <QrCode
-              text={result.url}
-              label={`QR code linking to ${result.url}`}
-              className="w-40 short:w-28"
-            />
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Scan to open the paste on another device.
-            </p>
-          </div>
-        )}
       </div>
       <div className="flex flex-col gap-4 short:gap-3 tiny:gap-2">
       <ul className="flex flex-wrap items-center justify-center gap-2 text-xs short:gap-1.5">
