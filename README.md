@@ -41,7 +41,7 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 pnpm install
 ```
 
-> This repo uses **pnpm** as the package manager and bleeding-edge tooling (TypeScript 7, ESLint 10). `pnpm lint` currently fails because `typescript-eslint` does not support TS 7 yet; typecheck (`pnpm build` / `pnpm typecheck`) is the source of truth.
+> This repo uses **pnpm** as the package manager and bleeding-edge tooling (TypeScript 7, ESLint 10). `tsc` is TypeScript 7 (aliased as `@typescript/native`), while the `typescript` package is the TS 6 compatibility build (`@typescript/typescript6`) so `typescript-eslint`, which has no TS 7 API yet, keeps working. Drop the alias once `typescript-eslint` supports TS 7.1+.
 
 ### 2. Configure environment
 
@@ -84,7 +84,8 @@ Open http://localhost:3000.
 | `pnpm dev` | Start dev server |
 | `pnpm build` | Production build (includes typecheck) |
 | `pnpm start` | Start production server |
-| `pnpm lint` | ESLint (fails until `typescript-eslint` supports TS 7) |
+| `pnpm lint` | ESLint |
+| `pnpm test` | Unit tests (Vitest) |
 | `pnpm typecheck` | Type-check only |
 | `pnpm db:generate` | Generate DB migration |
 | `pnpm db:migrate` | Apply DB migrations |
