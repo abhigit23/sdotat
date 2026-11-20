@@ -4,6 +4,9 @@ import type { NextRequest } from "next/server";
 import { createHash, createHmac } from "node:crypto";
 import { clientIp } from "./client-ip";
 
+/** What the limiters need from a request: its headers, for the client IP. */
+export type ClientRequest = Pick<NextRequest, "headers">;
+
 const UPS_ENABLED =
   !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
 
@@ -59,7 +62,7 @@ let ipHashKey: Buffer | null = null;
  * IP, so raw IPs are never sent to or stored in Redis. Keyed by a value derived
  * from the master key, so the hashes can't be reversed by hashing every IP.
  */
-export function clientId(req: Pick<NextRequest, "headers">): string {
+export function clientId(req: ClientRequest): string {
   const ip = clientIp(req);
   ipHashKey ??= createHash("sha256")
     .update(`ip-hash:${process.env.PASTE_MASTER_KEY ?? ""}`)
@@ -83,7 +86,7 @@ const ALLOW: RateLimitResult = { success: true, limit: Infinity, remaining: Infi
  * active (false means the service isn't configured, so allow everything).
  */
 export async function checkCreateLimit(
-  req: NextRequest
+  req: ClientRequest
 ): Promise<{ result: RateLimitResult; active: boolean }> {
   const limiter = getCreateLimiter();
   if (!limiter) return { result: ALLOW, active: false };
@@ -95,7 +98,7 @@ export async function checkCreateLimit(
  * Enforces the read rate limit.
  */
 export async function checkReadLimit(
-  req: NextRequest
+  req: ClientRequest
 ): Promise<{ result: RateLimitResult; active: boolean }> {
   const limiter = getReadLimiter();
   if (!limiter) return { result: ALLOW, active: false };
@@ -127,7 +130,7 @@ function getPageLimiter(): Ratelimit | null {
  * Redis isn't configured, and fails open if Redis errors: a page view reveals
  * no content, so availability wins.
  */
-export async function checkPageLimit(req: NextRequest): Promise<number | null> {
+export async function checkPageLimit(req: ClientRequest): Promise<number | null> {
   const limiter = getPageLimiter();
   if (!limiter) return null;
   try {
@@ -157,7 +160,7 @@ function getUploadLimiter(): Ratelimit | null {
  * Enforces the upload-token rate limit (one token per uploaded file).
  */
 export async function checkUploadLimit(
-  req: NextRequest
+  req: ClientRequest
 ): Promise<{ result: RateLimitResult; active: boolean }> {
   const limiter = getUploadLimiter();
   if (!limiter) return { result: ALLOW, active: false };
@@ -182,7 +185,7 @@ const PASSWORD_WINDOW_SECONDS = 60 * 60;
 /** Shown when a paste is locked; deliberately gives no count or timing. */
 export const PASSWORD_LOCKED_MESSAGE = "Too many attempts. Try again later.";
 
-function passwordFailureKeys(code: string, req: NextRequest): [string, string] {
+function passwordFailureKeys(code: string, req: ClientRequest): [string, string] {
   return [`pw:${code}:${clientId(req)}`, `pw:${code}`];
 }
 
@@ -223,7 +226,7 @@ return 1
  */
 export async function beginPasswordAttempt(
   code: string,
-  req: NextRequest
+  req: ClientRequest
 ): Promise<boolean> {
   const r = getRedis();
   if (!r) return true;
@@ -241,7 +244,7 @@ export async function beginPasswordAttempt(
  */
 export async function refundPasswordAttempt(
   code: string,
-  req: NextRequest
+  req: ClientRequest
 ): Promise<void> {
   const r = getRedis();
   if (!r) return;
@@ -317,7 +320,7 @@ const UPLOAD_SIZE_TTL_SECONDS = 3 * 60 * 60;
  * Always succeeds without Redis.
  */
 export async function claimUpload(
-  req: NextRequest,
+  req: ClientRequest,
   pathname: string,
   bytes: number
 ): Promise<"ok" | "taken" | "quota"> {
@@ -357,7 +360,7 @@ const GLOBAL_DAILY_TEXT_QUOTA_BYTES = 100 * 1024 * 1024;
  * Always allows when Redis isn't configured.
  */
 export async function reserveTextBytes(
-  req: NextRequest,
+  req: ClientRequest,
   bytes: number
 ): Promise<boolean> {
   const r = getRedis();
@@ -382,7 +385,7 @@ export async function reserveTextBytes(
  * a failure here only leaves the quota slightly over-counted.
  */
 export async function releaseTextBytes(
-  req: NextRequest,
+  req: ClientRequest,
   bytes: number
 ): Promise<void> {
   const r = getRedis();

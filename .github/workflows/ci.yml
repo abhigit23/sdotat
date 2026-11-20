@@ -15,6 +15,20 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Redis behind Upstash's REST protocol, for the rate-limit script tests
+    # (src/lib/rate-limit.redis.test.ts). SRH reaches Redis by service name
+    # on the services' shared network; the job reaches SRH on localhost.
+    services:
+      redis:
+        image: redis:6.2
+      srh:
+        image: hiett/serverless-redis-http:latest
+        ports:
+          - 8079:80
+        env:
+          SRH_MODE: env
+          SRH_TOKEN: ci-test-token
+          SRH_CONNECTION_STRING: redis://redis:6379
     steps:
       - uses: actions/checkout@v4
       # Version comes from "packageManager" in package.json.
@@ -27,4 +41,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+        env:
+          TEST_KV_REST_API_URL: http://localhost:8079
+          TEST_KV_REST_API_TOKEN: ci-test-token
       - run: pnpm build
