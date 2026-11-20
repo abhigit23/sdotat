@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getPasteByCode } from "@/lib/paste-service";
@@ -75,7 +75,8 @@ export async function POST(
   ) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
-  await refundPasswordAttempt(code, req);
+  // Off the response path: the attempt was already let through.
+  after(() => refundPasswordAttempt(code, req));
 
   return revealResponse(code, paste, contentKey, {
     includeKey: false,

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { get } from "@vercel/blob";
 import { Readable, Transform, pipeline } from "node:stream";
 import { createDecipheriv, timingSafeEqual } from "node:crypto";
@@ -101,7 +101,8 @@ export async function GET(
       ) {
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
-      await refundPasswordAttempt(code, req);
+      // Off the response path: the attempt was already let through.
+      after(() => refundPasswordAttempt(code, req));
     }
   } catch {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
