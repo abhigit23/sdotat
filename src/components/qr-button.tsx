@@ -48,8 +48,10 @@ export default function QrButton({ url }: { url: string }) {
         className="m-auto max-h-[calc(100dvh-2rem)] w-[min(20rem,calc(100vw-2rem))] overflow-auto rounded-xl border border-zinc-200 bg-white p-0 text-zinc-900 shadow-xl backdrop:bg-black/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
       >
         <div className="flex flex-col items-center gap-3 p-5 short:gap-2 short:p-3">
-          <div className="flex w-full items-center justify-between">
-            <h2 id="qr-dialog-title" className="text-base font-semibold">
+          {/* The title is centred across the full width; the close button
+              is positioned over the right edge so it doesn't shift it. */}
+          <div className="relative flex w-full items-center justify-center">
+            <h2 id="qr-dialog-title" className="px-8 text-center text-base font-semibold">
               Scan to open
             </h2>
             <button
@@ -57,7 +59,7 @@ export default function QrButton({ url }: { url: string }) {
               onClick={close}
               autoFocus
               aria-label="Close"
-              className="rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              className="absolute right-0 rounded-md p-1 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             >
               <X size={18} aria-hidden />
             </button>
