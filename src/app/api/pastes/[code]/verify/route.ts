@@ -18,14 +18,11 @@ import {
   recordPasswordFailure,
   PASSWORD_LOCKED_MESSAGE,
 } from "@/lib/rate-limit";
+import { contentKeySchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
-const verifySchema = z.object({
-  contentKey: z
-    .string()
-    .refine((v) => Buffer.from(v, "base64").length === 32, "invalid content key"),
-});
+const verifySchema = z.object({ contentKey: contentKeySchema });
 
 export async function POST(
   req: NextRequest,

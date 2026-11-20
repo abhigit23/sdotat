@@ -28,6 +28,25 @@ export const UPLOAD_PATHNAME = new RegExp(`^files/${UUID}$`);
 
 export const ATTACHMENT_ID = new RegExp(`^${UUID}$`);
 
+/** Standard padded base64, as the browser's btoa() produces. */
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/**
+ * Exactly `bytes` bytes as padded base64. Strict because Buffer.from(…,
+ * "base64") silently skips invalid characters, so a length check on the
+ * decoded bytes alone would accept arbitrarily long junk.
+ */
+function base64Bytes(bytes: number, message: string) {
+  return z
+    .string()
+    .length(4 * Math.ceil(bytes / 3), message)
+    .regex(BASE64, message)
+    .refine((v) => Buffer.from(v, "base64").length === bytes, message);
+}
+
+/** A 32-byte content key, base64 (create, verify, and `X-Paste-Key`). */
+export const contentKeySchema = base64Bytes(32, "invalid content key");
+
 const fileEntrySchema = z.object({
   pathname: z.string().regex(UPLOAD_PATHNAME, "invalid file path"),
   filename: z
@@ -39,17 +58,8 @@ const fileEntrySchema = z.object({
   size: z.number().int().positive().max(MAX_FILE_BYTES),
   // AES-GCM's 12-byte IV and 16-byte auth tag, base64. Exact, so the stored
   // columns can't be padded with junk that bypasses the text quota.
-  iv: z
-    .string()
-    .max(24)
-    .refine((v) => Buffer.from(v, "base64").length === 12, "invalid file IV"),
-  authTag: z
-    .string()
-    .max(32)
-    .refine(
-      (v) => Buffer.from(v, "base64").length === 16,
-      "invalid file auth tag"
-    ),
+  iv: base64Bytes(12, "invalid file IV"),
+  authTag: base64Bytes(16, "invalid file auth tag"),
   compression: z.enum(["deflate", "none"]).default("deflate"),
 });
 
@@ -66,17 +76,11 @@ export const createPasteSchema = z.object({
   // Base64 of the 32-byte content key, sent for password-protected pastes and
   // for pastes with file attachments so the server wraps/reuses the key the
   // client generated.
-  contentKey: z
-    .string()
-    .refine((v) => Buffer.from(v, "base64").length === 32, "invalid content key")
-    .optional(),
+  contentKey: contentKeySchema.optional(),
   // Base64 of the 16-byte PBKDF2 salt (password-protected pastes). Stored as
   // metadata so the client can re-derive the key on reveal; the server never
   // derives itself.
-  salt: z
-    .string()
-    .refine((v) => Buffer.from(v, "base64").length === 16, "invalid salt")
-    .optional(),
+  salt: base64Bytes(16, "invalid salt").optional(),
   files: z
     .array(fileEntrySchema)
     .max(MAX_FILES_PER_PASTE, `at most ${MAX_FILES_PER_PASTE} files per paste`)

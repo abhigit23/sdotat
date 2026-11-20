@@ -17,7 +17,7 @@ import {
   recordPasswordFailure,
   PASSWORD_LOCKED_MESSAGE,
 } from "@/lib/rate-limit";
-import { ATTACHMENT_ID } from "@/lib/validation";
+import { ATTACHMENT_ID, contentKeySchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,7 +94,7 @@ export async function GET(
     contentKey = unwrapKey(Buffer.from(row.keyWrapped));
     if (row.salt) {
       const providedRaw = req.headers.get("x-paste-key");
-      if (!providedRaw) {
+      if (!providedRaw || !contentKeySchema.safeParse(providedRaw).success) {
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
       // Same per-paste lock as /verify, or guesses could be made here instead.
