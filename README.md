@@ -12,7 +12,8 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 - **Encrypted file attachments** — up to 20 files per paste, 50 MB each, 100 MB total; files-only pastes (no text) are allowed. Add files with the picker, drag-and-drop anywhere on the page, or paste from the clipboard. Files are compressed (when smaller; a 256 KB sample is tried first so already-compressed media skips it) and encrypted client-side with the paste's content key, then uploaded straight to Vercel Blob, up to 3 at a time within a 64 MB in-flight budget so large files go one by one; filenames and MIME types are stored encrypted too. Viewers download the encrypted blobs straight from the store and decrypt them in the browser.
 - **Resilient uploads** — files over 8 MB use Vercel Blob multipart uploads (8 MB parts, retried individually), so a dropped connection on a slow or mobile network retries one part instead of restarting the file. Overall progress is shown and uploads can be cancelled.
 - **Delete your own paste** — the creating browser saves a delete token in `localStorage`, so the creator sees a **Delete** button on the paste page until it expires, even after closing the tab. A "Copy delete link" (`/<code>#delete=<token>`) works from other devices. The token lives in the URL fragment, which browsers never send to the server, and only its SHA-256 hash is stored.
-- **Viewer tools** — wrap long lines, line numbers (pastes up to 5,000 lines), download text as `.txt`, copy, per-file download progress, and "Download all (.zip)" for multi-file pastes. The share button uses the native share sheet where available and falls back to copying the link.
+- **Viewer tools** — wrap long lines, line numbers (pastes up to 5,000 lines), download text as `.txt`, copy, per-file download progress, and "Download all (.zip)" for multi-file pastes. The share button uses the native share sheet where available and falls back to copying the link, and a **QR code** opens the new paste's link on another device.
+- **Syntax highlighting** — opt-in from the viewer's language picker (32 languages, or "Detect language"), for pastes up to 200K characters, with or without line numbers. Text stays plain by default because detection can't reliably tell code from prose. The highlighter loads only when a language is picked, and renders through React elements (no HTML injection).
 - **UI** — light / dark / system theme toggle, slim theme-aware scrollbars, and a no-scroll responsive layout that compacts itself on short screens and landscape phones.
 - **Rate limiting** — create + read limits via Vercel KV / Upstash Redis (per-IP, sliding window).
 - **Hardened security headers** — strict CSP (`nonce` + `strict-dynamic`, `script-src-attr 'none'`), Referrer-Policy, nosniff, `X-Frame-Options: DENY`, Permissions-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy. File downloads are always served as `application/octet-stream` with a sandboxing CSP.
@@ -21,8 +22,9 @@ A short-URL pastebin built with **Next.js 16 (App Router) + TypeScript + Drizzle
 
 | Layer | Choice |
 |---|---|
-| Framework | Next.js 16.3.8 (App Router), TypeScript |
+| Framework | Next.js 16.4.6 (App Router), TypeScript |
 | UI | Tailwind CSS v4, Geist fonts (`next/font`), lucide-react icons |
+| Highlighting / QR | lowlight (highlight.js grammars) + hast-util-to-jsx-runtime; uqr |
 | ORM | Drizzle (+ postgres.js driver, drizzle-kit migrations) |
 | Database | PostgreSQL on Supabase (RLS enabled, Data API grants revoked) |
 | Crypto | Node `crypto` / WebCrypto — AES-256-GCM, PBKDF2-SHA256, master-key wrapping |
