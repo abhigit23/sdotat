@@ -22,6 +22,13 @@ describe("checkEnv", () => {
     expect(warnings).toHaveLength(3);
   });
 
+  it("warns when rate limiting has no trusted client IP", () => {
+    const kv = { ...good, KV_REST_API_URL: "https://kv" };
+    expect(checkEnv(kv).warnings[0]).toMatch(/TRUSTED_IP_HEADER/);
+    expect(checkEnv({ ...kv, VERCEL: "1" }).warnings).toEqual([]);
+    expect(checkEnv({ ...kv, TRUSTED_IP_HEADER: "cf-connecting-ip" }).warnings).toEqual([]);
+  });
+
   it("warns (not errors) on a short master key", () => {
     const { errors, warnings } = checkEnv({ ...good, PASTE_MASTER_KEY: "short" });
     expect(errors).toEqual([]);

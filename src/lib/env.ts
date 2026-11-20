@@ -4,6 +4,8 @@
  * missing PASTE_MASTER_KEY only fails on the first create or read.
  */
 
+import { trustedIpHeader } from "./client-ip";
+
 type Env = Record<string, string | undefined>;
 
 /** The app can't store or read pastes without these. */
@@ -24,6 +26,11 @@ export function checkEnv(env: Env): { errors: string[]; warnings: string[] } {
   const warnings = Object.entries(RECOMMENDED)
     .filter(([k]) => !env[k])
     .map(([k, effect]) => `${k} is not set: ${effect}`);
+  if (env.KV_REST_API_URL && !trustedIpHeader(env)) {
+    warnings.push(
+      "TRUSTED_IP_HEADER is not set and this isn't Vercel: client IPs can't be trusted, so all clients share one rate-limit bucket"
+    );
+  }
   const key = env.PASTE_MASTER_KEY;
   if (key && key.length < MIN_MASTER_KEY_LENGTH) {
     // Only a warning: changing the key would make every stored paste

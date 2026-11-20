@@ -18,13 +18,38 @@ function isTheme(v: string | null): v is Theme {
 
 const CHANGE_EVENT = "theme-change";
 
+/**
+ * The choice made on this page, used when storage is unavailable (disabled,
+ * or blocked in some private modes) so the toggle still cycles.
+ */
+let memoryTheme: Theme | null = null;
+
 function readTheme(): Theme {
   try {
     const stored = localStorage.getItem("theme");
-    return isTheme(stored) ? stored : "system";
+    if (isTheme(stored)) return stored;
   } catch {
-    return "system";
+    // Storage unavailable: fall back to this page's choice.
   }
+  return memoryTheme ?? "system";
+}
+
+function writeTheme(theme: Theme): void {
+  memoryTheme = theme;
+  try {
+    localStorage.setItem("theme", theme);
+  } catch {
+    // Storage unavailable: the choice lasts for this page only.
+  }
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+function applyTheme(theme: Theme): void {
+  const dark =
+    theme === "dark" ||
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark", dark);
 }
 
 /** Theme changes in this tab and others (for useSyncExternalStore). */
@@ -45,31 +70,22 @@ export default function ThemeToggle() {
   const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "system" as Theme);
 
   useEffect(() => {
+    // Follows the OS setting while on "system", and other tabs' changes.
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const stored = localStorage.getItem("theme");
-      const t: Theme = isTheme(stored) ? stored : "system";
-      const dark = t === "dark" || (t === "system" && mq.matches);
-      document.documentElement.classList.toggle("dark", dark);
-    };
+    const apply = () => applyTheme(readTheme());
     apply();
     mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    window.addEventListener("storage", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      window.removeEventListener("storage", apply);
+    };
   }, []);
 
   function cycle() {
     const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
-    try {
-      localStorage.setItem("theme", next);
-    } catch {
-      // Storage disabled: the theme still applies for this page.
-    }
-    window.dispatchEvent(new Event(CHANGE_EVENT));
-    const dark =
-      next === "dark" ||
-      (next === "system" &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.classList.toggle("dark", dark);
+    writeTheme(next);
+    applyTheme(next);
   }
 
   const Icon = theme === "system" ? Monitor : theme === "dark" ? Moon : Sun;

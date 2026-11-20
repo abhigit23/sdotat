@@ -1,5 +1,6 @@
 export async function register() {
-  // The checks read Node's process.env; the proxy's edge runtime needs none.
+  // register() also runs for the edge runtime if any route uses it; the
+  // checks only need to run once, in Node.js.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { assertServerEnv } = await import("./lib/env");
   assertServerEnv();

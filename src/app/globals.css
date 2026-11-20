@@ -121,3 +121,117 @@ body {
 .password-mask::placeholder {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Syntax highlighting (viewer, see lib/highlight.ts). lowlight emits
+   highlight.js class names; colours meet WCAG AA (4.5:1) on the text box's
+   zinc-50 (light) and zinc-950 (dark) backgrounds. */
+.hljs-comment,
+.hljs-quote {
+  color: #57606a;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-meta .hljs-keyword {
+  color: #c2185b;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-meta .hljs-string {
+  color: #116329;
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable.constant_ {
+  color: #0550ae;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-selector-id {
+  color: #6639ba;
+}
+.hljs-title.class_,
+.hljs-type,
+.hljs-built_in,
+.hljs-selector-class,
+.hljs-attr,
+.hljs-attribute,
+.hljs-name,
+.hljs-property {
+  color: #953800;
+}
+.hljs-meta,
+.hljs-tag,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable,
+.hljs-params,
+.hljs-subst {
+  color: #24292f;
+}
+.hljs-deletion {
+  color: #b42318;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #8b949e;
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-literal,
+.dark .hljs-doctag,
+.dark .hljs-meta .hljs-keyword {
+  color: #ff7b9c;
+}
+.dark .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-addition,
+.dark .hljs-meta .hljs-string {
+  color: #7ee787;
+}
+.dark .hljs-number,
+.dark .hljs-symbol,
+.dark .hljs-bullet,
+.dark .hljs-variable.constant_ {
+  color: #79c0ff;
+}
+.dark .hljs-title,
+.dark .hljs-title.function_,
+.dark .hljs-section,
+.dark .hljs-selector-id {
+  color: #d2a8ff;
+}
+.dark .hljs-title.class_,
+.dark .hljs-type,
+.dark .hljs-built_in,
+.dark .hljs-selector-class,
+.dark .hljs-attr,
+.dark .hljs-attribute,
+.dark .hljs-name,
+.dark .hljs-property {
+  color: #ffa657;
+}
+.dark .hljs-meta,
+.dark .hljs-tag,
+.dark .hljs-template-tag,
+.dark .hljs-template-variable,
+.dark .hljs-variable,
+.dark .hljs-params,
+.dark .hljs-subst {
+  color: #e6edf3;
+}
+.dark .hljs-deletion {
+  color: #ffa198;
+}

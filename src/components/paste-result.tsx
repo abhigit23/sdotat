@@ -2,6 +2,7 @@
 
 import { Clock, Flame, Lock } from "lucide-react";
 import CopyButton from "./copy-button";
+import QrButton from "./qr-button";
 import ShareButton from "./share-button";
 
 export type PasteResultData = {
@@ -35,6 +36,7 @@ export default function PasteResult({
         <div className="flex shrink-0 items-center justify-center gap-2">
           <ShareButton url={result.url} title="New paste on sdotat" />
           <CopyButton text={result.url} />
+          <QrButton url={result.url} />
         </div>
       </div>
       <div className="flex flex-col gap-4 short:gap-3 tiny:gap-2">
