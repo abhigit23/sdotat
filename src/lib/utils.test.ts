@@ -86,3 +86,12 @@ describe("mapWithByteBudget", () => {
     expect(await mapWithByteBudget([], 1, () => 1, async () => 1)).toEqual([]);
   });
 });
+
+describe("expiry", () => {
+  it("has a duration for every option, longest 3 days", async () => {
+    const { EXPIRY_OPTIONS, expiryMs } = await import("./expiry");
+    for (const o of EXPIRY_OPTIONS) expect(expiryMs(o.value)).toBeGreaterThan(0);
+    expect(expiryMs("3d")).toBe(3 * 24 * 60 * 60 * 1000);
+    expect(expiryMs("1y")).toBeNull();
+  });
+});
