@@ -1,7 +1,7 @@
 "use client";
 
 import { Monitor, Moon, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 type Theme = "system" | "light" | "dark";
 
@@ -16,13 +16,35 @@ function isTheme(v: string | null): v is Theme {
   return v === "system" || v === "light" || v === "dark";
 }
 
+const CHANGE_EVENT = "theme-change";
+
+function readTheme(): Theme {
+  try {
+    const stored = localStorage.getItem("theme");
+    return isTheme(stored) ? stored : "system";
+  } catch {
+    return "system";
+  }
+}
+
+/** Theme changes in this tab and others (for useSyncExternalStore). */
+function subscribeTheme(onChange: () => void): () => void {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === "theme") onChange();
+  };
+  window.addEventListener(CHANGE_EVENT, onChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, onChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("system");
+  // "system" on the server and during hydration, then the stored choice.
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "system" as Theme);
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    if (isTheme(stored)) setTheme(stored);
-
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
       const stored = localStorage.getItem("theme");
@@ -37,8 +59,12 @@ export default function ThemeToggle() {
 
   function cycle() {
     const next = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
-    setTheme(next);
-    localStorage.setItem("theme", next);
+    try {
+      localStorage.setItem("theme", next);
+    } catch {
+      // Storage disabled: the theme still applies for this page.
+    }
+    window.dispatchEvent(new Event(CHANGE_EVENT));
     const dark =
       next === "dark" ||
       (next === "system" &&

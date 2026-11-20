@@ -55,6 +55,9 @@ export default async function PastePage({
   const paste = isValidCode(code) ? await getPasteGateByCode(code) : null;
   if (!paste) notFound();
 
+  // A dynamic server component renders once per request, so reading the
+  // clock here is intended (the purity rule targets re-rendering clients).
+  // eslint-disable-next-line react-hooks/purity
   if (paste.expiresAt && paste.expiresAt.getTime() < Date.now()) {
     after(async () => {
       await deleteAttachmentsBlobs(code);

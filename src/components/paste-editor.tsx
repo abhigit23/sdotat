@@ -52,8 +52,10 @@ export default function PasteEditor() {
   // be attached once and still read the latest values.
   const filesRef = useRef<File[]>(files);
   const loadingRef = useRef(loading);
-  filesRef.current = files;
-  loadingRef.current = loading;
+  useEffect(() => {
+    filesRef.current = files;
+    loadingRef.current = loading;
+  }, [files, loading]);
 
   const totalBytes = files.reduce((sum, f) => sum + f.size, 0);
 
