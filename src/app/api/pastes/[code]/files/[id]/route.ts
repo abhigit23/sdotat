@@ -1,14 +1,13 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { Readable, Transform, pipeline } from "node:stream";
 import { createDecipheriv, timingSafeEqual } from "node:crypto";
 import { createInflate } from "node:zlib";
 import {
   getAttachmentForDownload,
-  deletePaste,
   claimPasteForView,
-  deleteAttachmentsBlobs,
 } from "@/lib/paste-service";
+import { deleteAfterResponse, unavailableResponse } from "@/lib/paste-view";
 import { unwrapKey, openAttachmentMeta } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
 import {
@@ -77,17 +76,8 @@ export async function GET(
   }
   const { attachment } = row;
 
-  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
-    after(async () => {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
-    });
-    return NextResponse.json({ error: "Expired" }, { status: 404 });
-  }
-
-  if (row.burnAfterRead && row.consumed) {
-    return NextResponse.json({ error: "Gone" }, { status: 410 });
-  }
+  const unavailable = unavailableResponse(code, row);
+  if (unavailable) return unavailable;
 
   let contentKey: Buffer;
   try {
@@ -132,10 +122,7 @@ export async function GET(
     if (!claimed) {
       return NextResponse.json({ error: "Gone" }, { status: 410 });
     }
-    after(async () => {
-      await deleteAttachmentsBlobs(code);
-      await deletePaste(code);
-    });
+    deleteAfterResponse(code);
   }
 
   // Every check is done before the blob is opened, so no early return can
