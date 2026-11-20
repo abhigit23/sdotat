@@ -14,8 +14,8 @@ import { toAttachmentViews } from "@/lib/attachment-views";
 import { isValidCode } from "@/lib/ids";
 import {
   checkReadLimit,
-  isPasswordLocked,
-  recordPasswordFailure,
+  beginPasswordAttempt,
+  refundPasswordAttempt,
   PASSWORD_LOCKED_MESSAGE,
 } from "@/lib/rate-limit";
 import { contentKeySchema } from "@/lib/validation";
@@ -73,12 +73,6 @@ export async function POST(
     );
   }
 
-  // Checked before comparing, so a locked paste rejects even the right
-  // password until the window ends.
-  if (await isPasswordLocked(code, req)) {
-    return NextResponse.json({ error: PASSWORD_LOCKED_MESSAGE }, { status: 429 });
-  }
-
   const provided = Buffer.from(parsed.data.contentKey, "base64");
   let contentKey: Buffer;
   try {
@@ -86,13 +80,19 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Invalid paste" }, { status: 500 });
   }
+
+  // Checked before comparing, so a locked paste rejects even the right
+  // password until the window ends.
+  if (!(await beginPasswordAttempt(code, req))) {
+    return NextResponse.json({ error: PASSWORD_LOCKED_MESSAGE }, { status: 429 });
+  }
   if (
     contentKey.length !== provided.length ||
     !timingSafeEqual(contentKey, provided)
   ) {
-    await recordPasswordFailure(code, req);
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
+  await refundPasswordAttempt(code, req);
 
   // Fetch attachments in parallel with decryption.
   const attachmentsPromise = getAttachmentsByCode(code);

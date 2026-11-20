@@ -13,8 +13,8 @@ import { unwrapKey, openAttachmentMeta } from "@/lib/crypto";
 import { isValidCode } from "@/lib/ids";
 import {
   checkReadLimit,
-  isPasswordLocked,
-  recordPasswordFailure,
+  beginPasswordAttempt,
+  refundPasswordAttempt,
   PASSWORD_LOCKED_MESSAGE,
 } from "@/lib/rate-limit";
 import { ATTACHMENT_ID, contentKeySchema } from "@/lib/validation";
@@ -98,7 +98,7 @@ export async function GET(
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
       // Same per-paste lock as /verify, or guesses could be made here instead.
-      if (await isPasswordLocked(code, req)) {
+      if (!(await beginPasswordAttempt(code, req))) {
         return NextResponse.json(
           { error: PASSWORD_LOCKED_MESSAGE },
           { status: 429 }
@@ -109,9 +109,9 @@ export async function GET(
         contentKey.length !== provided.length ||
         !timingSafeEqual(contentKey, provided)
       ) {
-        await recordPasswordFailure(code, req);
         return NextResponse.json({ error: "Invalid password" }, { status: 401 });
       }
+      await refundPasswordAttempt(code, req);
     }
   } catch {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });

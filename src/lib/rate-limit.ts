@@ -170,14 +170,14 @@ export async function checkUploadLimit(
 
 /**
  * Failed password attempts allowed per paste from one IP before the paste
- * locks for that IP for the rest of the window. Someone guessing can't lock
- * out the real recipient, who is on a different IP.
+ * locks for that IP for the rest of the window.
  */
 const MAX_PASSWORD_FAILURES_PER_IP = 10;
 /**
  * Failed attempts allowed per paste across all IPs before it locks for
  * everyone. Bounds online guessing when an attacker spreads guesses across
- * many IPs.
+ * many IPs, at the cost that guessing from several IPs can also lock out the
+ * real recipient until the window ends.
  */
 const MAX_PASSWORD_FAILURES = 50;
 const PASSWORD_WINDOW_SECONDS = 60 * 60;
@@ -190,41 +190,67 @@ function passwordFailureKeys(code: string, req: NextRequest): [string, string] {
 }
 
 /**
- * True if the paste has had too many failed password attempts in the current
- * window, from this IP or from all IPs together. Always false when Redis isn't
- * configured.
+ * Checks the lock and, if open, counts the attempt, atomically.
+ *
+ * KEYS: IP counter, global counter
+ * ARGV: IP max, global max, window seconds
+ * Returns 1 if the attempt may proceed (and was counted), 0 if locked.
  */
-export async function isPasswordLocked(
+export const PASSWORD_ATTEMPT_SCRIPT = `
+local ip = tonumber(redis.call('GET', KEYS[1]) or '0')
+local all = tonumber(redis.call('GET', KEYS[2]) or '0')
+if ip >= tonumber(ARGV[1]) or all >= tonumber(ARGV[2]) then
+  return 0
+end
+for _, key in ipairs(KEYS) do
+  if redis.call('INCR', key) == 1 then redis.call('EXPIRE', key, ARGV[3]) end
+end
+return 1
+`;
+
+/** Undoes one attempt counted by PASSWORD_ATTEMPT_SCRIPT. */
+export const PASSWORD_REFUND_SCRIPT = `
+for _, key in ipairs(KEYS) do
+  if tonumber(redis.call('GET', key) or '0') > 0 then redis.call('DECR', key) end
+end
+return 1
+`;
+
+/**
+ * Starts a password attempt: false if the paste is locked for this IP (too
+ * many failures from it, or from all IPs together, in the current window).
+ * Otherwise the attempt is counted as a failure up front, so a burst of
+ * concurrent guesses can't all slip past the lock before any is recorded;
+ * call refundPasswordAttempt() when the password turns out to be right.
+ * Always true when Redis isn't configured.
+ */
+export async function beginPasswordAttempt(
   code: string,
   req: NextRequest
 ): Promise<boolean> {
   const r = getRedis();
-  if (!r) return false;
-  const [fromIp, total] = await r.mget<(number | null)[]>(
-    ...passwordFailureKeys(code, req)
+  if (!r) return true;
+  const res = await r.eval<number[], number>(
+    PASSWORD_ATTEMPT_SCRIPT,
+    passwordFailureKeys(code, req),
+    [MAX_PASSWORD_FAILURES_PER_IP, MAX_PASSWORD_FAILURES, PASSWORD_WINDOW_SECONDS]
   );
-  return (
-    (fromIp ?? 0) >= MAX_PASSWORD_FAILURES_PER_IP ||
-    (total ?? 0) >= MAX_PASSWORD_FAILURES
-  );
+  return res === 1;
 }
 
 /**
- * Counts a failed password attempt against the paste, for this IP and in
- * total. Each window starts at its first failure.
+ * Uncounts an attempt begun with beginPasswordAttempt() whose password was
+ * right. Best effort: a failure only leaves one extra failure counted.
  */
-export async function recordPasswordFailure(
+export async function refundPasswordAttempt(
   code: string,
   req: NextRequest
 ): Promise<void> {
   const r = getRedis();
   if (!r) return;
-  // One round trip: INCR each key, starting its expiry on the first failure.
-  await r.eval(
-    "for _, key in ipairs(KEYS) do if redis.call('INCR', key) == 1 then redis.call('EXPIRE', key, ARGV[1]) end end return 1",
-    passwordFailureKeys(code, req),
-    [PASSWORD_WINDOW_SECONDS]
-  );
+  await r
+    .eval(PASSWORD_REFUND_SCRIPT, passwordFailureKeys(code, req), [])
+    .catch(() => {});
 }
 
 /**
